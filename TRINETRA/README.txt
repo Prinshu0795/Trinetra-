@@ -1,0 +1,13 @@
+TRINETRA — SIH 26206 PDF Documentation Folder
+
+01_Problem_Analysis/01_Problem_Analysis.pdf
+02_Core_Features/02_Core_Features.pdf
+03_User_Flows/03_User_Flows.pdf
+04_MVP_vs_Advanced/04_MVP_vs_Advanced.pdf
+05_Functional_Requirements/05_Functional_Requirements.pdf
+06_Problem_Solution_Mapping/06_Problem_Solution_Mapping.pdf
+07_API_Requirements/07_API_Requirements.pdf
+08_Module_Dependencies/08_Module_Dependencies.pdf
+09_System_Architecture/09_System_Architecture.pdf
+10_SIH_PPT/10_SIH_PPT.pdf
+11_Demo_Script/11_Demo_Script.pdf
