@@ -1,0 +1,238 @@
+// server/prisma/schema.prisma
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Allowed categorical values are validated by Zod at the application layer:
+// Role:             "CITIZEN" | "AUTHORITY" | "RESPONDER"
+// DisasterType:     "FLOOD" | "CYCLONE" | "EARTHQUAKE" | "LANDSLIDE" | "WILDFIRE" | "TSUNAMI" | "URBAN_EMERGENCY"
+// SeverityLevel:    "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+// DisasterStatus:   "MONITORING" | "ACTIVE" | "CONTAINED" | "RESOLVED"
+// AlertType:        "ADVISORY" | "WATCH" | "WARNING" | "EVACUATION_ORDER"
+// AlertStatus:      "DRAFT" | "ACTIVE" | "EXPIRED" | "WITHDRAWN"
+// ReportStatus:     "PENDING_VERIFICATION" | "VERIFIED" | "INVESTIGATING" | "DISPATCHED" | "REJECTED" | "RESOLVED"
+// SafeZoneStatus:   "OPEN" | "NEAR_CAPACITY" | "FULL" | "STANDBY" | "CLOSED"
+// ResourceCategory: "HOSPITAL" | "RELIEF_CAMP" | "FIRE_STATION" | "POLICE_STATION" | "NDRF_UNIT" | "SUPPLY_DEPOT" | "AMBULANCE_BASE"
+// ResourceStatus:   "AVAILABLE" | "ENGAGED" | "DEPLETED" | "STANDBY"
+// RiskLevel:        "LOW" | "MODERATE" | "HIGH" | "SEVERE"
+
+model User {
+  id              String           @id @default(uuid())
+  email           String           @unique
+  passwordHash    String
+  fullName        String
+  phone           String?
+  role            String           @default("CITIZEN")       // CITIZEN | AUTHORITY | RESPONDER
+  badgeNumber     String?          // Required for Authority/Responder
+  department      String?          // e.g. "NDRF", "State Disaster Management Authority"
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  reports         IncidentReport[]
+  authoredAlerts  Alert[]
+  auditLogs       AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Disaster {
+  id                     String           @id @default(uuid())
+  title                  String
+  type                   String           // FLOOD | CYCLONE | EARTHQUAKE | LANDSLIDE | WILDFIRE | TSUNAMI | URBAN_EMERGENCY
+  severity               String           // LOW | MEDIUM | HIGH | CRITICAL
+  status                 String           @default("ACTIVE")  // MONITORING | ACTIVE | CONTAINED | RESOLVED
+  locationName           String
+  latitude               Float
+  longitude              Float
+  radiusKm               Float            @default(10.0)
+  description            String
+  affectedPopulationEst  Int              @default(0)
+  source                 String           @default("IMD / CWC / Disaster Authority")
+  declaredAt             DateTime         @default(now())
+  containedAt            DateTime?
+  updatedAt              DateTime         @updatedAt
+
+  alerts                 Alert[]
+  incidentReports        IncidentReport[]
+  riskAssessments        RiskAssessment[]
+
+  @@index([status])
+  @@index([type])
+  @@index([latitude, longitude])
+}
+
+model Alert {
+  id                 String         @id @default(uuid())
+  disasterId         String?
+  authorId           String
+  title              String
+  type               String         @default("WARNING")   // ADVISORY | WATCH | WARNING | EVACUATION_ORDER
+  severity           String         @default("HIGH")      // LOW | MEDIUM | HIGH | CRITICAL
+  status             String         @default("ACTIVE")    // DRAFT | ACTIVE | EXPIRED | WITHDRAWN
+  targetAreaName     String
+  targetLatitude     Float
+  targetLongitude    Float
+  targetRadiusKm     Float          @default(15.0)
+  headline           String
+  detailedMessage    String
+  actionInstructions String         // E.g. "Move to 2nd floor or designated safe zones. Boil water."
+  source             String         @default("National Disaster Management Authority")
+  issuedAt           DateTime       @default(now())
+  expiresAt          DateTime
+  withdrawnAt        DateTime?
+  updatedAt          DateTime       @updatedAt
+
+  disaster           Disaster?      @relation(fields: [disasterId], references: [id], onDelete: SetNull)
+  author             User           @relation(fields: [authorId], references: [id])
+
+  @@index([status])
+  @@index([expiresAt])
+  @@index([targetLatitude, targetLongitude])
+}
+
+model IncidentReport {
+  id             String         @id @default(uuid())
+  trackingCode   String         @unique  // Human-readable "RPT-2026-0001"
+  disasterId     String?
+  citizenId      String?
+  citizenName    String?        // For guest/anonymous reports
+  citizenPhone   String?
+  disasterType   String         // FLOOD | CYCLONE | EARTHQUAKE | LANDSLIDE | WILDFIRE | TSUNAMI | URBAN_EMERGENCY
+  title          String
+  description    String
+  locationName   String
+  latitude       Float
+  longitude      Float
+  imageUrl       String?        // Uploaded file path
+  status         String         @default("PENDING_VERIFICATION")  // PENDING_VERIFICATION | VERIFIED | INVESTIGATING | DISPATCHED | REJECTED | RESOLVED
+  triagePriority String         @default("MEDIUM")                // LOW | MEDIUM | HIGH | CRITICAL
+  authorityNotes String?
+  verifiedById   String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  disaster       Disaster?      @relation(fields: [disasterId], references: [id], onDelete: SetNull)
+  citizen        User?          @relation(fields: [citizenId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([disasterType])
+  @@index([latitude, longitude])
+}
+
+model SafeZone {
+  id               String         @id @default(uuid())
+  name             String
+  type             String         // "Shelter", "Community Center", "School", "High Ground"
+  locationName     String
+  latitude         Float
+  longitude        Float
+  capacityTotal    Int
+  capacityOccupied Int            @default(0)
+  status           String         @default("OPEN")  // OPEN | NEAR_CAPACITY | FULL | STANDBY | CLOSED
+  amenities        String         // JSON string: ["Food", "First Aid", "Power", "Drinking Water"]
+  contactPerson    String?
+  contactPhone     String?
+  elevationMeters  Float?         // Critical for flood safe-zones
+  source           String         @default("District Administration")
+  lastVerifiedAt   DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([status])
+  @@index([latitude, longitude])
+}
+
+model EmergencyResource {
+  id              String            @id @default(uuid())
+  name            String
+  category        String            // HOSPITAL | RELIEF_CAMP | FIRE_STATION | POLICE_STATION | NDRF_UNIT | SUPPLY_DEPOT | AMBULANCE_BASE
+  locationName    String
+  latitude        Float
+  longitude       Float
+  contactNumber   String
+  status          String            @default("AVAILABLE")  // AVAILABLE | ENGAGED | DEPLETED | STANDBY
+  details         String            // E.g. "45 ICU beds, 3 ambulances on standby"
+  supplies        String?           // JSON string: {"ambulances": 3, "oxygen": "high", "generators": 2}
+  source          String            @default("State Emergency Operations Center")
+  lastVerifiedAt  DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([latitude, longitude])
+}
+
+model RiskAssessment {
+  id                   String        @id @default(uuid())
+  disasterId           String?
+  locationName         String
+  latitude             Float
+  longitude            Float
+  riskLevel            String        // LOW | MODERATE | HIGH | SEVERE
+  riskScore            Float         // Normalized 0.0 - 100.0
+  floodRisk            Float         @default(0.0)
+  cycloneRisk          Float         @default(0.0)
+  landslideRisk        Float         @default(0.0)
+  confidenceScore      Float         @default(0.85)
+  modelVersion         String        @default("TRINETRA-HYBRID-RULE-v1.2")
+  factorsJson          String        // Key contributing parameters (JSON string)
+  explanationText      String        // Human-readable rationale
+  advisoryText         String        // Suggested response
+  isFallback           Boolean       @default(false)
+  evaluatedAt          DateTime      @default(now())
+
+  disaster             Disaster?     @relation(fields: [disasterId], references: [id], onDelete: SetNull)
+
+  @@index([locationName])
+  @@index([riskLevel])
+}
+
+model AuditLog {
+  id           String      @id @default(uuid())
+  userId       String?
+  action       String      // "ALERT_PUBLISHED", "REPORT_VERIFIED", "DISASTER_CREATED", etc.
+  entityType   String      // "Alert", "IncidentReport", "Disaster"
+  entityId     String
+  details      String?     // JSON metadata of change
+  ipAddress    String?
+  createdAt    DateTime    @default(now())
+
+  user         User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model FloodBuffer {
+  id              String   @id @default(uuid())
+  name            String
+  geometryGeojson String   // GeoJSON text
+  riskLevel       String
+  source          String
+  sourceUrl       String?
+  validFrom       DateTime?
+  validUntil      DateTime?
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model LocationRiskCache {
+  id              String   @id @default(uuid())
+  locationName    String   @unique
+  latitude        Float
+  longitude       Float
+  riskScore       Float
+  riskLevel       String
+  factorsJson     String
+  weatherJson     String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  
+  @@index([latitude, longitude])
+}
