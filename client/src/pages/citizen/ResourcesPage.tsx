@@ -1,0 +1,163 @@
+// client/src/pages/citizen/ResourcesPage.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  Building2,
+  Phone,
+  MapPin,
+  Package,
+} from 'lucide-react';
+import api from '../../lib/api';
+import { EmergencyResource } from '../../types';
+import { Badge } from '../../components/common/Badge';
+import { useGeolocation } from '../../hooks/useGeolocation';
+
+export const ResourcesPage: React.FC = () => {
+  const { latitude, longitude } = useGeolocation();
+  const [resources, setResources] = useState<EmergencyResource[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+
+  useEffect(() => {
+    const fetchResources = async () => {
+      try {
+        setLoading(true);
+        const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}` : '';
+        const res = await api.get(`/resources${latQuery}`);
+        if (res.data.success) {
+          setResources(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to load emergency resources:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchResources();
+  }, [latitude, longitude]);
+
+  const categories = [
+    { key: 'ALL', label: 'All Resources' },
+    { key: 'HOSPITAL', label: 'Hospitals & Medical' },
+    { key: 'NDRF_UNIT', label: 'NDRF Water Rescue' },
+    { key: 'FIRE_STATION', label: 'Fire & Rescue Squads' },
+  ];
+
+  const filtered = resources.filter((r) => {
+    if (selectedCategory === 'ALL') return true;
+    return r.category === selectedCategory;
+  });
+
+  return (
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <div>
+        <h1 className="text-2xl font-serif font-normal text-ink flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-coral" />
+          <span>Emergency Facilities & Critical Resources</span>
+        </h1>
+        <p className="text-sm text-ink-muted mt-1">
+          Direct directory of operational Level-1 trauma centers, NDRF boat rescue bases, and de-watering pump squads.
+        </p>
+      </div>
+
+      {/* Category Tabs */}
+      <div className="flex space-x-2 border-b border-hairline pb-3 overflow-x-auto text-xs font-semibold">
+        {categories.map((cat) => (
+          <button
+            key={cat.key}
+            onClick={() => setSelectedCategory(cat.key)}
+            className={`px-3.5 py-1.5 rounded-lg transition ${
+              selectedCategory === cat.key
+                ? 'bg-coral text-white shadow-sm'
+                : 'text-ink-muted hover:text-ink hover:bg-canvas-subtle'
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-ink-muted">Loading emergency logistics...</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((resItem) => {
+            let suppliesObj: any = null;
+            if (resItem.supplies) {
+              try {
+                suppliesObj = JSON.parse(resItem.supplies);
+              } catch {}
+            }
+
+            return (
+              <div
+                key={resItem.id}
+                className="bg-white border border-hairline rounded-xl p-5 shadow-card hover:border-hairline transition space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-mono font-semibold text-coral uppercase tracking-wider">
+                        {resItem.category.replace(/_/g, ' ')}
+                      </span>
+                      <h3 className="text-base font-semibold text-ink leading-tight mt-0.5">{resItem.name}</h3>
+                      <p className="text-xs text-ink-muted flex items-center gap-1 mt-1">
+                        <MapPin className="w-3.5 h-3.5 text-ink-subtle flex-shrink-0" />
+                        <span>{resItem.locationName}</span>
+                      </p>
+                    </div>
+                    <Badge status={resItem.status} />
+                  </div>
+
+                  {resItem.distanceKm !== undefined && (
+                    <span className="inline-block bg-canvas border border-hairline px-2 py-0.5 rounded text-xs text-[#1E40AF] font-mono font-semibold">
+                      📍 {resItem.distanceKm} km away
+                    </span>
+                  )}
+
+                  <p className="text-xs text-ink-body leading-relaxed bg-canvas p-3 rounded-lg border border-hairline">
+                    {resItem.details}
+                  </p>
+
+                  {/* Supplies Checklist */}
+                  {suppliesObj && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider flex items-center gap-1 font-mono">
+                        <Package className="w-3.5 h-3.5 text-coral" />
+                        Verified Active Inventory
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                        {Object.entries(suppliesObj).map(([k, v]) => (
+                          <div
+                            key={k}
+                            className="bg-canvas border border-hairline p-2 rounded-lg text-ink-body"
+                          >
+                            <span className="text-[10px] text-ink-subtle block capitalize font-sans">
+                              {k.replace(/([A-Z])/g, ' $1')}
+                            </span>
+                            <span className="font-semibold text-ink">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Direct Dial Action */}
+                <div className="pt-3 border-t border-hairline">
+                  <a
+                    href={`tel:${resItem.contactNumber}`}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 bg-coral hover:bg-coral-hover active:bg-coral-active text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    <span>Call Helpline ({resItem.contactNumber})</span>
+                  </a>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
