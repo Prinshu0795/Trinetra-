@@ -7,7 +7,7 @@ export async function getWeatherData(lat: number, lng: number) {
     if (!response.ok) {
       throw new Error(`Open-Meteo returned ${response.status}`);
     }
-    const data = await response.json();
+    const data = (await response.json()) as any;
     return {
       temperature: data.current_weather.temperature,
       windspeed: data.current_weather.windspeed,
