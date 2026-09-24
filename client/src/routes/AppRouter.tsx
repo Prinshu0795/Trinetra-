@@ -9,6 +9,7 @@ import { HomePage } from '../pages/citizen/HomePage';
 import { DisasterMapPage } from '../pages/citizen/DisasterMapPage';
 import { ReportIncidentPage } from '../pages/citizen/ReportIncidentPage';
 import { AlertsPage } from '../pages/citizen/AlertsPage';
+import { GeoIntelligencePage } from '../pages/citizen/GeoIntelligencePage';
 import { SafeZonesPage } from '../pages/citizen/SafeZonesPage';
 import { ResourcesPage } from '../pages/citizen/ResourcesPage';
 
@@ -37,6 +38,7 @@ export const AppRouter: React.FC = () => {
           <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/map" element={<DisasterMapPage />} />
           <Route path="/alerts" element={<AlertsPage />} />
+          <Route path="/geo-intelligence" element={<GeoIntelligencePage />} />
           <Route path="/report" element={<ReportIncidentPage />} />
           <Route path="/safe-zones" element={<SafeZonesPage />} />
           <Route path="/resources" element={<ResourcesPage />} />

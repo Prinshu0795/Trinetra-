@@ -8,6 +8,7 @@ import safeZoneRoutes from './safeZones.routes.js';
 import resourceRoutes from './resources.routes.js';
 import riskRoutes from './risk.routes.js';
 import devRoutes from './dev.routes.js';
+import geoIntelligenceRoutes from './geoIntelligence.routes.js';
 
 const router = Router();
 
@@ -19,5 +20,6 @@ router.use('/safe-zones', safeZoneRoutes);
 router.use('/resources', resourceRoutes);
 router.use('/risk', riskRoutes);
 router.use('/dev', devRoutes);
+router.use('/geo-intelligence', geoIntelligenceRoutes);
 
 export default router;

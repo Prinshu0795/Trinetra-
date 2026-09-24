@@ -13,6 +13,7 @@ import {
   LogOut,
   Volume2,
   VolumeX,
+  Activity,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAlertStream } from '../../context/AlertStreamContext';
@@ -33,6 +34,7 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: 'Live Map', path: '/map', icon: MapPin },
+    { name: 'Geo-Intel', path: '/geo-intelligence', icon: Activity },
     { name: 'Alerts', path: '/alerts', icon: Bell },
     { name: 'Report Incident', path: '/report', icon: FilePlus2 },
     { name: 'Safe Shelters', path: '/safe-zones', icon: ShieldCheck },
@@ -76,15 +78,10 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center justify-between h-16 gap-2">
             {/* Left: Brand Identity */}
             <Link to="/" className="flex items-center space-x-2.5 group flex-shrink-0">
-              <div className="w-8 h-8 rounded-lg bg-coral flex items-center justify-center text-white shadow-sm transition group-hover:bg-coral-hover">
-                <ShieldAlert className="w-4 h-4" />
-              </div>
+              <img src="/logo.png" alt="Trinetra Logo" className="w-10 h-10 object-contain transition-transform group-hover:scale-105" />
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
                   <span className="text-base font-bold tracking-tight text-ink font-sans">TRINETRA</span>
-                  <span className="text-[10px] bg-coral-subtle text-coral border border-coral-border px-1.5 py-0.5 rounded font-mono font-semibold">
-                    SIH 26206
-                  </span>
                 </div>
                 <span className="hidden xl:block text-[9px] text-ink-muted tracking-wider font-medium uppercase font-mono">
                   Disaster Early Warning Platform

@@ -208,3 +208,31 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
 }
+
+model FloodBuffer {
+  id              String   @id @default(uuid())
+  name            String
+  geometryGeojson String   // GeoJSON text
+  riskLevel       String
+  source          String
+  sourceUrl       String?
+  validFrom       DateTime?
+  validUntil      DateTime?
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+model LocationRiskCache {
+  id              String   @id @default(uuid())
+  locationName    String   @unique
+  latitude        Float
+  longitude       Float
+  riskScore       Float
+  riskLevel       String
+  factorsJson     String
+  weatherJson     String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  
+  @@index([latitude, longitude])
+}

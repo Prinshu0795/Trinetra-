@@ -8,6 +8,7 @@ export async function seedScenario(db = prisma) {
   console.log('--- Starting TRINETRA Deterministic Scenario Seeding (SIH 26206) ---');
 
   // Clean dynamic tables in dependency order
+  await db.floodBuffer.deleteMany();
   await db.auditLog.deleteMany();
   await db.incidentReport.deleteMany();
   await db.alert.deleteMany();
@@ -290,6 +291,24 @@ export async function seedScenario(db = prisma) {
         'Enforce mandatory evacuation of low-lying floodplains. Keep all medical and NDRF rescue units on red alert.',
       isFallback: false,
     },
+  });
+
+  // 9. Seed Demo Flood Buffers
+  await db.floodBuffer.create({
+    data: {
+      name: 'Ayodhya Saryu River Flood Zone Model',
+      geometryGeojson: '{"type":"Polygon","coordinates":[[[82.18,26.81],[82.22,26.81],[82.22,26.78],[82.18,26.78],[82.18,26.81]]]}',
+      riskLevel: 'HIGH',
+      source: 'TRINETRA DEMO DATA',
+    }
+  });
+  await db.floodBuffer.create({
+    data: {
+      name: 'Lucknow Gomti Basin Buffer',
+      geometryGeojson: '{"type":"Polygon","coordinates":[[[80.90,26.86],[80.98,26.86],[80.98,26.83],[80.90,26.83],[80.90,26.86]]]}',
+      riskLevel: 'MODERATE',
+      source: 'TRINETRA DEMO DATA',
+    }
   });
 
   console.log('--- TRINETRA Seed Completed Successfully! ---');
