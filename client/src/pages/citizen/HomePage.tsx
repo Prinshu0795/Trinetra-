@@ -13,14 +13,12 @@ import {
   AlertTriangle,
   PhoneCall,
   Waves,
-  Radio,
   ExternalLink,
   Layers,
   CheckCircle2,
   Clock,
   Navigation,
   AlertOctagon,
-  Search,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Disaster, SafeZone, Alert, IncidentReport, RiskAssessment, EmergencyResource } from '../../types';
@@ -143,62 +141,40 @@ export const HomePage: React.FC = () => {
             : 'Monitor real-time hydrological stage levels, locate verified high-ground evacuation shelters with live capacity, and follow authoritative civil protection directives issued by the Assam State Disaster Management Authority.'}
         </p>
 
-        {/* Primary Action Button Cluster */}
-        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2">
+        {/* Primary Action Button Cluster — minimal & focused */}
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          {/* SOS — primary, most prominent */}
           <button
             type="button"
             onClick={() => setSosModalOpen(true)}
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#9E2A2B] hover:bg-[#852223] active:bg-[#6D1D1E] text-white text-xs sm:text-sm font-semibold shadow-sm transition whitespace-nowrap"
+            className="group inline-flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-[#9E2A2B] hover:bg-[#852223] active:scale-[0.97] text-white text-sm font-bold shadow-lg hover:shadow-xl transition-all duration-200 whitespace-nowrap"
             title="Trigger Emergency Distress SOS"
           >
-            <AlertOctagon className="w-4 h-4 text-white" />
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+            </span>
+            <AlertOctagon className="w-4 h-4" />
             <span>Emergency SOS</span>
           </button>
 
+          {/* Report — secondary */}
           <Link
             to="/report"
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs sm:text-sm font-semibold shadow-sm transition whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-coral hover:bg-coral-hover active:bg-coral-active active:scale-[0.97] text-white text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap"
           >
             <FilePlus2 className="w-4 h-4" />
             <span>Report Incident</span>
           </Link>
 
+          {/* Map — ghost tertiary */}
           <Link
             to="/map"
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
+            className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl border border-hairline bg-white/70 hover:bg-canvas text-ink-body hover:text-ink text-sm font-medium shadow-sm transition-all duration-200 whitespace-nowrap"
           >
             <Layers className="w-4 h-4 text-coral" />
-            <span>Live GIS Map</span>
-          </Link>
-
-          <Link
-            to="/geo-intelligence"
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
-            title="Search Indian cities & locations for localized risk assessment"
-          >
-            <Search className="w-4 h-4 text-coral" />
-            <span>Geo Search</span>
-          </Link>
-
-          <Link
-            to="/safe-zones"
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
-          >
-            <ShieldCheck className="w-4 h-4 text-[#166534]" />
-            <span>Safe Shelters</span>
-            {safeZones.length > 0 && (
-              <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-full">
-                {safeZones.length}
-              </span>
-            )}
-          </Link>
-
-          <Link
-            to="/relay"
-            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-coral-subtle hover:bg-coral hover:text-white border border-coral-border text-coral text-xs sm:text-sm font-semibold shadow-xs transition whitespace-nowrap group"
-          >
-            <Radio className="w-4 h-4 text-coral group-hover:text-white" />
-            <span>RELAY Mesh</span>
+            <span>Live Map</span>
+            <ArrowRight className="w-3.5 h-3.5 text-ink-muted group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
 

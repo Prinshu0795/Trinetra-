@@ -40,33 +40,38 @@ export const FloatingSosButton: React.FC = () => {
       )}
 
       {/* Desktop Floating SOS Button (Hidden on mobile where MobileBottomNav SOS is used) */}
-      <div className="hidden md:flex fixed bottom-6 right-6 z-40 flex-col items-end space-y-2">
+      <div className="hidden md:flex fixed bottom-6 right-6 z-40 flex-col items-end gap-2.5">
         {peerActivity && (
-          <div className="bg-[#141413] text-white text-[11px] font-mono px-3 py-1.5 rounded-full shadow-lg flex items-center space-x-2 border border-coral animate-bounce">
+          <div className="bg-[#141413]/90 backdrop-blur-sm text-white text-[11px] font-mono px-3.5 py-2 rounded-2xl shadow-xl flex items-center gap-2 border border-coral/60 animate-bounce">
             <Radio className="w-3.5 h-3.5 text-coral animate-spin" />
-            <span>TRINETRA Peer Relaying Nearby Packet</span>
+            <span>Peer Relaying Nearby Packet</span>
           </div>
         )}
 
-        <button
-          onClick={() => setModalOpen(true)}
-          className="group relative flex items-center space-x-2.5 px-4 py-3 bg-[#9E2A2B] hover:bg-[#852223] active:bg-[#6D1D1E] text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-          title="Emergency SOS (Works Offline via Relay Mesh)"
-        >
-          <div className="relative">
-            <AlertOctagon className="w-5 h-5 text-white" />
-            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+        {/* Outer glow ring */}
+        <div className="relative">
+          <span className="absolute inset-0 rounded-full animate-ping bg-red-500/30 scale-110" />
+          <span className="absolute inset-0 rounded-full bg-red-700/20 scale-105" />
+          <button
+            onClick={() => setModalOpen(true)}
+            className="relative group flex items-center gap-3 pl-4 pr-5 py-3.5 bg-gradient-to-br from-[#B83232] via-[#9E2A2B] to-[#7A1E1E] hover:from-[#C53535] hover:to-[#8A2222] active:scale-95 text-white rounded-full shadow-2xl hover:shadow-red-900/40 transition-all duration-200 font-sans border border-red-800/50"
+            title="Emergency SOS (Works Offline via Relay Mesh)"
+          >
+            {/* Live dot */}
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-70" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
             </span>
-          </div>
-          <span className="text-xs font-semibold uppercase tracking-wider pr-1">
-            Emergency SOS
-          </span>
-          <span className="hidden sm:inline-block text-[10px] font-mono bg-white/20 px-1.5 py-0.5 rounded">
-            Mesh
-          </span>
-        </button>
+
+            <AlertOctagon className="w-[18px] h-[18px] shrink-0" />
+
+            <span className="text-[13px] font-bold tracking-wide">SOS</span>
+
+            <span className="text-[10px] font-mono bg-white/15 border border-white/20 px-1.5 py-0.5 rounded-lg leading-none">
+              MESH
+            </span>
+          </button>
+        </div>
       </div>
 
       <EmergencySosModal isOpen={modalOpen} onClose={() => setModalOpen(false)} />
