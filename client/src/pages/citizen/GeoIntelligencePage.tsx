@@ -76,14 +76,14 @@ export const GeoIntelligencePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-canvas pb-12">
       {/* Header */}
-      <div className="bg-white border-b border-hairline py-8 px-4 sm:px-6 lg:px-8 shadow-sm">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="bg-white border-b border-hairline py-6 sm:py-8 px-3.5 sm:px-6 lg:px-8 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
           <div>
-            <h1 className="text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2">
-              <Activity className="w-6 h-6 text-coral" />
-              TRINETRA GEO-INTELLIGENCE
+            <h1 className="text-xl sm:text-2xl font-serif font-bold text-ink tracking-tight flex items-center gap-2">
+              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-coral shrink-0" />
+              <span>TRINETRA GEO-INTELLIGENCE</span>
             </h1>
-            <p className="text-xs text-ink-muted mt-1 font-mono uppercase tracking-wider">
+            <p className="text-[10px] sm:text-xs text-ink-muted mt-1 font-mono uppercase tracking-wider">
               Real-time geospatial visualization & risk assessment
             </p>
           </div>
@@ -125,7 +125,7 @@ export const GeoIntelligencePage: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+      <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 mt-6 sm:mt-8">
         {!selectedLocation && !loadingData && (
           <div className="bg-white border border-hairline rounded-2xl p-12 text-center text-ink-muted shadow-sm">
             <MapIcon className="w-12 h-12 mx-auto mb-4 text-ink-subtle opacity-50" />
@@ -209,7 +209,7 @@ export const GeoIntelligencePage: React.FC = () => {
             {/* Right Column: Map and Datasets */}
             <div className="lg:col-span-2 space-y-6">
               {/* GIS Map */}
-              <div className="bg-white border border-hairline rounded-xl shadow-sm overflow-hidden h-[450px] relative z-0">
+              <div className="bg-white border border-hairline rounded-xl shadow-sm overflow-hidden h-[340px] sm:h-[450px] relative z-0">
                 <MapContainer 
                   center={[selectedLocation.lat, selectedLocation.lng]} 
                   zoom={12} 
@@ -229,7 +229,7 @@ export const GeoIntelligencePage: React.FC = () => {
                     </Popup>
                   </Marker>
 
-                  {/* Render Resources, Safe Zones, Incidents as Circles for Demo */}
+                  {/* Render Resources, Safe Zones, Incidents as Live Map Features */}
                   {geoData.safeCamps.map((camp: any) => (
                     <Circle key={camp.id} center={[camp.latitude, camp.longitude]} pathOptions={{ color: 'blue', fillColor: 'blue' }} radius={200}>
                       <Popup>🏕 <strong>{camp.name}</strong> (Verified Safe Camp)</Popup>

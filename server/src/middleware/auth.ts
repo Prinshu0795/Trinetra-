@@ -94,16 +94,17 @@ export function requireRole(allowedRoles: string[]) {
       return next(new ApiError('Authentication required', 401, 'UNAUTHORIZED'));
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return next(
-        new ApiError(
-          `Access forbidden: requires one of roles [${allowedRoles.join(', ')}]`,
-          403,
-          'FORBIDDEN'
-        )
-      );
+    // Super Administrator has unrestricted access across all operational modules
+    if (req.user.role === 'ADMIN' || allowedRoles.includes(req.user.role)) {
+      return next();
     }
 
-    next();
+    return next(
+      new ApiError(
+        `Access forbidden: requires one of roles [${allowedRoles.join(', ')}]`,
+        403,
+        'FORBIDDEN'
+      )
+    );
   };
 }

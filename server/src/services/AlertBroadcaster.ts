@@ -40,7 +40,17 @@ class AlertBroadcasterService {
   }
 
   // Broadcast event to all active clients
-  broadcast(eventType: 'ALERT_PUBLISHED' | 'ALERT_WITHDRAWN' | 'INCIDENT_REPORTED', data: any) {
+  broadcast(
+    eventType:
+      | 'ALERT_PUBLISHED'
+      | 'ALERT_WITHDRAWN'
+      | 'INCIDENT_REPORTED'
+      | 'RELAY_SOS_RECEIVED'
+      | 'RELAY_112_DISPATCHED'
+      | 'DISASTER_DETECTED'
+      | 'FEED_SYNC_COMPLETE',
+    data: any
+  ) {
     const payload = JSON.stringify({
       eventType,
       data,
@@ -86,6 +96,7 @@ class AlertBroadcasterService {
         }
       }
     }, 15000); // 15 seconds
+    this.heartbeatInterval.unref();
   }
 }
 

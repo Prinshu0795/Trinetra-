@@ -13,6 +13,7 @@ import { IncidentReport, ReportStatus, SeverityLevel } from '../../types';
 import { Badge } from '../../components/common/Badge';
 import { AuthoritySidebar } from '../../components/layout/AuthoritySidebar';
 import { Modal } from '../../components/common/Modal';
+import { isSupabaseConfigured, supabase, supabaseGetIncidentReports } from '../../lib/supabase';
 
 export const IncidentTriagePage: React.FC = () => {
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -28,10 +29,23 @@ export const IncidentTriagePage: React.FC = () => {
     try {
       setLoading(true);
       const res = await api.get(`/reports?status=${statusFilter}`);
-      if (res.data.success) {
+      if (res.data?.success) {
         setReports(res.data.data);
+        return;
       }
     } catch (err) {
+      if (isSupabaseConfigured) {
+        try {
+          const supaReports = await supabaseGetIncidentReports();
+          const filtered = statusFilter === 'ALL'
+            ? supaReports
+            : supaReports.filter((r: any) => r.status === statusFilter);
+          setReports(filtered as any);
+          return;
+        } catch (supaErr) {
+          console.error('Supabase fetch reports failed:', supaErr);
+        }
+      }
       console.error('Failed to load incident reports:', err);
     } finally {
       setLoading(false);
@@ -46,17 +60,50 @@ export const IncidentTriagePage: React.FC = () => {
     if (!selectedReport) return;
     try {
       setActionLoading(true);
-      const res = await api.patch(`/reports/${selectedReport.id}/triage`, {
-        status: newStatus,
-        triagePriority,
-        authorityNotes: triageNotes || undefined,
-      });
+      let updated: any = null;
 
-      if (res.data.success) {
+      try {
+        const res = await api.patch(`/reports/${selectedReport.id}/triage`, {
+          status: newStatus,
+          triagePriority,
+          authorityNotes: triageNotes || undefined,
+        });
+
+        if (res.data?.success) {
+          updated = res.data.data;
+        }
+      } catch (backendErr) {
+        console.warn('Backend triage endpoint failed, attempting Supabase direct triage update:', backendErr);
+      }
+
+      if (!updated && isSupabaseConfigured) {
+        const { data, error } = await supabase
+          .from('incident_reports')
+          .update({
+            status: newStatus,
+            triage_priority: triagePriority,
+            authority_notes: triageNotes || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedReport.id)
+          .select()
+          .single();
+
+        if (!error && data) {
+          updated = {
+            ...selectedReport,
+            status: newStatus,
+            triagePriority,
+            authorityNotes: triageNotes || undefined,
+          };
+        }
+      }
+
+      if (updated) {
         setReports((prev) =>
-          prev.map((r) => (r.id === selectedReport.id ? res.data.data : r))
+          prev.map((r) => (r.id === selectedReport.id ? updated : r))
         );
-        setSelectedReport(res.data.data);
+        setSelectedReport(updated);
       }
     } catch (err) {
       console.error('Failed to triage report:', err);
@@ -66,29 +113,29 @@ export const IncidentTriagePage: React.FC = () => {
   };
 
   return (
-    <div className="flex bg-canvas min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row bg-canvas min-h-[calc(100vh-4rem)]">
       <AuthoritySidebar />
 
-      <main className="flex-1 p-6 space-y-6 overflow-x-hidden">
+      <main className="flex-1 p-3.5 sm:p-6 space-y-6 overflow-x-hidden">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-4">
           <div>
             <div className="flex items-center space-x-2">
               <ClipboardList className="w-5 h-5 text-coral" />
-              <h1 className="text-2xl font-serif font-normal text-ink">Incident Report Triage Desk</h1>
+              <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink">Incident Report Triage Desk</h1>
             </div>
-            <p className="text-sm text-ink-muted mt-1">
+            <p className="text-xs sm:text-sm text-ink-muted mt-1">
               Validate eyewitness submissions, inspect photographic proof, assign severity priority, and coordinate field responder dispatch.
             </p>
           </div>
 
-          {/* Status Filter Tabs */}
-          <div className="flex flex-wrap gap-1 text-xs font-semibold bg-canvas-subtle p-1 rounded-lg border border-hairline">
+          {/* Status Filter Tabs (Horizontally scrollable on mobile) */}
+          <div className="flex overflow-x-auto no-scrollbar gap-1 text-xs font-semibold bg-canvas-subtle p-1 rounded-xl border border-hairline max-w-full">
             {['ALL', 'PENDING_VERIFICATION', 'VERIFIED', 'DISPATCHED', 'RESOLVED'].map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-md transition ${
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
                   statusFilter === st
                     ? 'bg-white text-ink border border-hairline shadow-card font-semibold'
                     : 'text-ink-muted hover:text-ink'
@@ -141,11 +188,16 @@ export const IncidentTriagePage: React.FC = () => {
                       }`}
                     >
                       <div className="space-y-1.5">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap gap-1">
                           <span className="text-xs font-mono font-bold text-coral">
                             {rpt.trackingCode}
                           </span>
                           <Badge status={rpt.status} />
+                          {(rpt.title.includes('RELAY') || rpt.description.includes('RELAY')) && (
+                            <span className="text-[10px] font-mono font-bold bg-[#FDF2F2] text-[#9E2A2B] border border-[#F5C2C2] px-1.5 py-0.5 rounded">
+                              🚨 MESH RELAY (0% NET)
+                            </span>
+                          )}
                           <span className="text-[10px] text-ink-subtle font-mono">
                             {new Date(rpt.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>

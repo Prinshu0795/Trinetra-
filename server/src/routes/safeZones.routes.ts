@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import {
   listSafeZones,
+  getInstantShelters,
   createSafeZone,
   updateSafeZoneOccupancy,
 } from '../controllers/resource.controller.js';
@@ -11,6 +12,7 @@ import { createSafeZoneSchema, updateSafeZoneOccupancySchema } from '../schemas/
 
 const router = Router();
 
+router.get('/instant', getInstantShelters);
 router.get('/', listSafeZones);
 router.post(
   '/',

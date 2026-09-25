@@ -1,0 +1,18 @@
+{
+  "short_name": "TRINETRA",
+  "name": "TRINETRA — Unified Disaster Management & SOS Relay",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#FAF9F5",
+  "theme_color": "#CC785C",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "description": "Offline-First Disaster Management, Situational Awareness, and Peer-to-Peer SOS Relay System."
+}

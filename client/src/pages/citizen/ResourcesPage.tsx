@@ -21,7 +21,7 @@ export const ResourcesPage: React.FC = () => {
     const fetchResources = async () => {
       try {
         setLoading(true);
-        const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}` : '';
+        const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}&live=true` : '';
         const res = await api.get(`/resources${latQuery}`);
         if (res.data.success) {
           setResources(res.data.data);
@@ -49,27 +49,27 @@ export const ResourcesPage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-serif font-normal text-ink flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-coral" />
+        <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink flex items-center gap-2">
+          <Building2 className="w-5 h-5 text-coral shrink-0" />
           <span>Emergency Facilities & Critical Resources</span>
         </h1>
-        <p className="text-sm text-ink-muted mt-1">
+        <p className="text-xs sm:text-sm text-ink-muted mt-1">
           Direct directory of operational Level-1 trauma centers, NDRF boat rescue bases, and de-watering pump squads.
         </p>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex space-x-2 border-b border-hairline pb-3 overflow-x-auto text-xs font-semibold">
+      {/* Category Tabs (Horizontal scrollable on mobile) */}
+      <div className="flex space-x-1.5 border-b border-hairline pb-3 overflow-x-auto no-scrollbar text-xs font-semibold py-0.5">
         {categories.map((cat) => (
           <button
             key={cat.key}
             onClick={() => setSelectedCategory(cat.key)}
-            className={`px-3.5 py-1.5 rounded-lg transition ${
+            className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition ${
               selectedCategory === cat.key
                 ? 'bg-coral text-white shadow-sm'
-                : 'text-ink-muted hover:text-ink hover:bg-canvas-subtle'
+                : 'bg-white hover:bg-canvas text-ink-muted hover:text-ink border border-hairline'
             }`}
           >
             {cat.label}
@@ -109,11 +109,24 @@ export const ResourcesPage: React.FC = () => {
                     <Badge status={resItem.status} />
                   </div>
 
-                  {resItem.distanceKm !== undefined && (
-                    <span className="inline-block bg-canvas border border-hairline px-2 py-0.5 rounded text-xs text-[#1E40AF] font-mono font-semibold">
-                      📍 {resItem.distanceKm} km away
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {resItem.distanceKm !== undefined && (
+                      <span
+                        className={`inline-block border px-2 py-0.5 rounded text-xs font-mono font-semibold ${
+                          resItem.distanceKm < 15
+                            ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#166534]'
+                            : 'bg-canvas border-hairline text-[#1E40AF]'
+                        }`}
+                      >
+                        📍 {resItem.distanceKm} km away
+                      </span>
+                    )}
+                    {resItem.source?.includes('OPENSTREETMAP') && (
+                      <span className="inline-block bg-[#EFF6FF] border border-[#BFDBFE] px-1.5 py-0.5 rounded text-[10px] text-[#1E40AF] font-mono">
+                        Live OSM
+                      </span>
+                    )}
+                  </div>
 
                   <p className="text-xs text-ink-body leading-relaxed bg-canvas p-3 rounded-lg border border-hairline">
                     {resItem.details}

@@ -1,6 +1,7 @@
 // server/src/index.ts
 import { createApp } from './app.js';
 import { config } from './config/index.js';
+import { DisasterIngestionService } from './services/DisasterIngestionService.js';
 
 const app = createApp();
 
@@ -12,11 +13,15 @@ const server = app.listen(config.port, () => {
   console.log(`🏥  Health Check: http://localhost:${config.port}/api/health`);
   console.log(`📂  Environment:  ${config.nodeEnv}`);
   console.log(`=======================================================`);
+
+  // Start real-time disaster feed auto-ingestion (USGS, GDACS, NASA EONET)
+  DisasterIngestionService.startAutoIngestion(15);
 });
 
 // Graceful termination
 const shutdown = () => {
   console.log('\n[TRINETRA] Shutting down gracefully...');
+  DisasterIngestionService.stopAutoIngestion();
   server.close(() => {
     console.log('[TRINETRA] Closed HTTP connections. Process exiting.');
     process.exit(0);
@@ -25,3 +30,11 @@ const shutdown = () => {
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+process.on('uncaughtException', (err) => {
+  console.error('[TRINETRA UNCAUGHT EXCEPTION]:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[TRINETRA UNHANDLED REJECTION]:', reason);
+});

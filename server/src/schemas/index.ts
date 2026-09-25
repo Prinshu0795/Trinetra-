@@ -2,7 +2,8 @@
 import { z } from 'zod';
 
 // Shared domain enumerations (enforced at application boundary)
-export const RoleEnum = z.enum(['CITIZEN', 'AUTHORITY', 'RESPONDER']);
+export const RoleEnum = z.enum(['CITIZEN', 'AUTHORITY', 'RESPONDER', 'ADMIN']);
+
 
 export const DisasterTypeEnum = z.enum([
   'FLOOD',
@@ -73,10 +74,10 @@ export const registerSchema = z.object({
   email: z.string().email('Valid email address required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  phone: z.string().optional(),
+  phone: z.string().optional().nullable(),
   role: RoleEnum.default('CITIZEN'),
-  badgeNumber: z.string().optional(),
-  department: z.string().optional(),
+  badgeNumber: z.string().optional().nullable(),
+  department: z.string().optional().nullable(),
 });
 
 export const loginSchema = z.object({
@@ -182,3 +183,26 @@ export const updateResourceStatusSchema = z.object({
   details: z.string().optional(),
   supplies: z.string().optional(),
 });
+
+export const relayPacketSchema = z.object({
+  packetId: z.string().min(3),
+  victimName: z.string().min(1),
+  victimPhone: z.string().optional().nullable(),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  altitudeMeters: z.number().optional().nullable(),
+  emergencyType: z.string().default('FLOOD_TRAPPED'),
+  severity: SeverityEnum.default('CRITICAL'),
+  message: z.string().min(1),
+  batteryLevel: z.number().int().min(0).max(100).optional().nullable(),
+  hopCount: z.number().int().min(0).default(0),
+  relayChainJson: z.string().default('[]'),
+  originTimestamp: z.string().optional().nullable(),
+  gatewayNodeId: z.string().optional().nullable(),
+});
+
+export const batchRelaySchema = z.object({
+  gatewayNodeId: z.string().optional().nullable(),
+  packets: z.array(relayPacketSchema),
+});
+

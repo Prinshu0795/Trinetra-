@@ -19,7 +19,7 @@ export async function resetScenario(req: Request, res: Response, next: NextFunct
     await seedScenario(prisma);
 
     return sendSuccess(res, {
-      message: 'TRINETRA scenario reset successfully to Brahmaputra Flood demo state',
+      message: 'TRINETRA scenario reset successfully to Pan-India multi-hazard operational baseline',
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

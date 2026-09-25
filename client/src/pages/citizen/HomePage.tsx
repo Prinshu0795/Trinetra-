@@ -41,19 +41,30 @@ export const HomePage: React.FC = () => {
         setLoading(true);
         const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}` : '';
 
-        const [disastersRes, safeZonesRes, alertsRes, reportsRes, riskRes] = await Promise.all([
+        const [disastersRes, safeZonesRes, alertsRes, reportsRes] = await Promise.all([
           api.get(`/disasters${latQuery}`),
           api.get(`/safe-zones${latQuery}`),
           api.get('/alerts?status=ACTIVE'),
           api.get('/reports?status=ALL'),
-          api.get(`/risk/Guwahati${latQuery}`),
         ]);
 
-        if (disastersRes.data.success) setDisasters(disastersRes.data.data);
+        let loadedDisasters: Disaster[] = [];
+        if (disastersRes.data.success) {
+          loadedDisasters = disastersRes.data.data;
+          setDisasters(loadedDisasters);
+        }
         if (safeZonesRes.data.success) setSafeZones(safeZonesRes.data.data);
         if (alertsRes.data.success) setAlerts(alertsRes.data.data);
         if (reportsRes.data.success) setReports(reportsRes.data.data);
-        if (riskRes.data.success) setRiskData(riskRes.data.data);
+
+        // Dynamic risk query based on nearest disaster sector or coordinates
+        const primarySector = loadedDisasters[0]?.locationName || 'Guwahati';
+        try {
+          const riskRes = await api.get(`/risk/${encodeURIComponent(primarySector)}${latQuery}`);
+          if (riskRes.data.success) setRiskData(riskRes.data.data);
+        } catch (riskErr) {
+          console.warn('Risk query error:', riskErr);
+        }
       } catch (err) {
         console.error('Failed to load home page telemetry:', err);
       } finally {
@@ -70,26 +81,36 @@ export const HomePage: React.FC = () => {
   const totalShelterOccupied = safeZones.reduce((sum, sz) => sum + sz.capacityOccupied, 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12 font-sans">
+    <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 sm:space-y-12 font-sans">
       {/* 1. EDITORIAL HERO: Calm, Authoritative Public Safety Dispatch */}
-      <section className="space-y-6 max-w-4xl">
+      <section className="space-y-4 sm:space-y-6 max-w-4xl">
         {/* Eyebrow & Provenance Kicker */}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-coral-subtle border border-coral-border text-coral text-xs font-semibold font-mono tracking-wider uppercase">
             <span className="w-1.5 h-1.5 rounded-full bg-coral" />
-            ASDMA State EOC • Official Bulletin #2026-09
+            {activeDisaster ? activeDisaster.source : 'National Early Warning Network'}
           </span>
           <span className="text-xs font-mono text-ink-muted">
-            Sector: Brahmaputra Basin (Kamrup Metro)
+            Sector: {activeDisaster ? activeDisaster.locationName : 'Regional Operational Sector'}
           </span>
+          {activeDisaster?.distanceKm !== undefined && (
+            <>
+              <span className="hidden sm:inline-block text-hairline">•</span>
+              <span className="text-xs font-mono text-coral bg-coral-subtle border border-coral-border px-2 py-0.5 rounded">
+                {activeDisaster.distanceKm < 1
+                  ? 'Immediate Sector (< 1 km)'
+                  : `${activeDisaster.distanceKm.toFixed(0)} km from your location`}
+              </span>
+            </>
+          )}
           <span className="hidden sm:inline-block text-hairline">•</span>
           <span className="text-xs font-mono text-[#166534] bg-[#F0FDF4] border border-[#BBF7D0] px-2 py-0.5 rounded">
             SSE Stream: ACTIVE
           </span>
         </div>
 
-        {/* Monumental Headline in Newsreader Serif */}
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-serif font-normal text-ink tracking-tight leading-[1.12]">
+        {/* Monumental Headline in Newsreader Serif (Fluid sizing on mobile) */}
+        <h1 className="text-2xl sm:text-4xl lg:text-5xl font-serif font-normal text-ink tracking-tight leading-[1.15]">
           {activeDisaster
             ? activeDisaster.title
             : 'Brahmaputra Basin Flood Inundation & Early Warning Network'}
@@ -103,29 +124,42 @@ export const HomePage: React.FC = () => {
         </p>
 
         {/* Primary Action Button Cluster */}
-        <div className="flex flex-wrap items-center gap-3 pt-2">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2">
           <Link
             to="/report"
-            className="inline-flex items-center space-x-2 px-6 py-3 rounded-lg bg-coral hover:bg-coral-hover active:bg-coral-active text-white font-semibold text-xs uppercase tracking-wider shadow-sm transition"
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs sm:text-sm font-semibold shadow-sm transition whitespace-nowrap"
           >
             <FilePlus2 className="w-4 h-4" />
-            <span>Report Ground Incident</span>
+            <span>Report Incident</span>
           </Link>
 
           <Link
             to="/map"
-            className="inline-flex items-center space-x-2 px-6 py-3 rounded-lg bg-white hover:bg-canvas text-ink border border-hairline font-semibold text-xs uppercase tracking-wider shadow-card transition"
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
           >
             <Layers className="w-4 h-4 text-coral" />
-            <span>Explore Live GIS Map</span>
+            <span>Live GIS Map</span>
           </Link>
 
           <Link
             to="/safe-zones"
-            className="inline-flex items-center space-x-1.5 px-4 py-3 rounded-lg text-ink-muted hover:text-ink hover:bg-canvas-subtle text-xs font-semibold transition"
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
           >
             <ShieldCheck className="w-4 h-4 text-[#166534]" />
-            <span>View All Shelters ({safeZones.length})</span>
+            <span>Safe Shelters</span>
+            {safeZones.length > 0 && (
+              <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-full">
+                {safeZones.length}
+              </span>
+            )}
+          </Link>
+
+          <Link
+            to="/relay"
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-coral-subtle hover:bg-coral hover:text-white border border-coral-border text-coral text-xs sm:text-sm font-semibold shadow-xs transition whitespace-nowrap group"
+          >
+            <Radio className="w-4 h-4 text-coral group-hover:text-white" />
+            <span>RELAY Mesh</span>
           </Link>
         </div>
 
@@ -149,6 +183,35 @@ export const HomePage: React.FC = () => {
               Refuge Havens: <strong className="text-ink font-semibold">{safeZones.length} Designated Open</strong>
             </span>
           </div>
+        </div>
+      </section>
+
+      {/* INNOVATION SPOTLIGHT: TRINETRA RELAY — SOS WITHOUT INTERNET */}
+      <section className="bg-gradient-to-r from-[#FAF9F5] via-white to-[#FDF4F0] border border-coral-border rounded-2xl p-6 sm:p-8 shadow-card flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-2 max-w-3xl">
+          <div className="flex items-center space-x-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FDF2F2] border border-[#F5C2C2] text-[#9E2A2B] text-[10px] font-mono font-bold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#9E2A2B] animate-ping" />
+              Innovation Feature • Offline Mesh
+            </span>
+            <span className="text-xs font-mono text-ink-muted">Delay-Tolerant Mesh</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-serif font-normal text-ink">
+            TRINETRA RELAY: Emergency SOS Without Internet
+          </h2>
+          <p className="text-xs sm:text-sm text-ink-body leading-relaxed">
+            Stranded in a complete cellular blackout? TRINETRA RELAY stores your distress packet locally and silently hops it across nearby peer smartphones via Bluetooth LE and Wi-Fi Direct until it reaches an active internet gateway or emergency boat.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <Link
+            to="/relay"
+            className="inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-lg bg-coral hover:bg-coral-hover text-white text-xs font-semibold uppercase tracking-wider shadow-sm transition"
+          >
+            <span>Explore TRINETRA RELAY</span>
+            <ArrowRight className="w-4 h-4" />
+          </Link>
         </div>
       </section>
 

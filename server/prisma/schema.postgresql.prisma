@@ -1,7 +1,8 @@
-// server/prisma/schema.prisma
+// server/prisma/schema.postgresql.prisma
+// Supabase PostgreSQL schema for TRINETRA
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -9,26 +10,13 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Allowed categorical values are validated by Zod at the application layer:
-// Role:             "CITIZEN" | "AUTHORITY" | "RESPONDER"
-// DisasterType:     "FLOOD" | "CYCLONE" | "EARTHQUAKE" | "LANDSLIDE" | "WILDFIRE" | "TSUNAMI" | "URBAN_EMERGENCY"
-// SeverityLevel:    "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
-// DisasterStatus:   "MONITORING" | "ACTIVE" | "CONTAINED" | "RESOLVED"
-// AlertType:        "ADVISORY" | "WATCH" | "WARNING" | "EVACUATION_ORDER"
-// AlertStatus:      "DRAFT" | "ACTIVE" | "EXPIRED" | "WITHDRAWN"
-// ReportStatus:     "PENDING_VERIFICATION" | "VERIFIED" | "INVESTIGATING" | "DISPATCHED" | "REJECTED" | "RESOLVED"
-// SafeZoneStatus:   "OPEN" | "NEAR_CAPACITY" | "FULL" | "STANDBY" | "CLOSED"
-// ResourceCategory: "HOSPITAL" | "RELIEF_CAMP" | "FIRE_STATION" | "POLICE_STATION" | "NDRF_UNIT" | "SUPPLY_DEPOT" | "AMBULANCE_BASE"
-// ResourceStatus:   "AVAILABLE" | "ENGAGED" | "DEPLETED" | "STANDBY"
-// RiskLevel:        "LOW" | "MODERATE" | "HIGH" | "SEVERE"
-
 model User {
   id              String           @id @default(uuid())
   email           String           @unique
   passwordHash    String
   fullName        String
   phone           String?
-  role            String           @default("CITIZEN")       // CITIZEN | AUTHORITY | RESPONDER
+  role            String           @default("CITIZEN")       // CITIZEN | AUTHORITY | RESPONDER | ADMIN
   badgeNumber     String?          // Required for Authority/Responder
   department      String?          // e.g. "NDRF", "State Disaster Management Authority"
   createdAt       DateTime         @default(now())

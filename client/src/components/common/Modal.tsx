@@ -44,26 +44,29 @@ export const Modal: React.FC<ModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center p-0 sm:p-4 bg-ink/40 backdrop-blur-sm animate-fade-in"
       onClick={onClose}
     >
       <div
-        className={`relative w-full ${maxWidthClasses} bg-white border border-hairline rounded-xl shadow-elevated overflow-hidden`}
+        className={`relative w-full ${maxWidthClasses} bg-white border-t sm:border border-hairline rounded-t-3xl sm:rounded-2xl shadow-elevated overflow-hidden max-h-[92vh] flex flex-col animate-slide-up sm:animate-none pb-safe`}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Drag Indicator */}
+        <div className="sm:hidden w-12 h-1 bg-hairline rounded-full mx-auto mt-3 mb-1" />
+
         {title && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-hairline-soft">
-            <h3 className="text-lg font-semibold text-ink tracking-wide">{title}</h3>
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-hairline-soft">
+            <h3 className="text-base sm:text-lg font-semibold text-ink tracking-wide">{title}</h3>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-ink-subtle hover:text-ink hover:bg-canvas-subtle transition"
+              className="p-1.5 rounded-xl text-ink-subtle hover:text-ink hover:bg-canvas-subtle transition"
               aria-label="Close modal"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         )}
-        <div className="p-6 max-h-[85vh] overflow-y-auto">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

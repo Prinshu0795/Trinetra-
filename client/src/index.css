@@ -5,6 +5,7 @@
 @layer base {
   body {
     @apply bg-canvas text-ink-body antialiased min-h-screen font-sans;
+    -webkit-tap-highlight-color: transparent;
   }
 
   /* Editorial serif display headings */
@@ -12,6 +13,31 @@
     @apply font-serif tracking-tight;
     letter-spacing: -0.02em;
   }
+}
+
+/* Safe area padding utilities */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+.pt-safe {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+/* Hide scrollbar utility for horizontal scroll pills */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes slideUp {
+  0% { transform: translateY(100%); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Warm light scrollbars */

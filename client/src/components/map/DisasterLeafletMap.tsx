@@ -70,8 +70,10 @@ interface DisasterLeafletMapProps {
   userLng?: number | null;
   height?: string;
   zoom?: number;
+  center?: [number, number];
   initialCenter?: [number, number];
   onReportClick?: (report: IncidentReport) => void;
+  onResetPanIndia?: () => void;
 }
 
 export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
@@ -82,81 +84,116 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
   userLat,
   userLng,
   height = '600px',
-  zoom = 12,
-  initialCenter = [26.1445, 91.7362], // Guwahati default
+  zoom = 5,
+  center: controlledCenter,
+  initialCenter = [22.3511, 78.6677], // Geographic center of India
   onReportClick,
+  onResetPanIndia,
 }) => {
   const [showDisasters, setShowDisasters] = useState(true);
   const [showSafeZones, setShowSafeZones] = useState(true);
   const [showResources, setShowResources] = useState(true);
   const [showReports, setShowReports] = useState(true);
+  const [layersExpanded, setLayersExpanded] = useState(false);
 
-  const center: [number, number] =
-    userLat && userLng ? [userLat, userLng] : initialCenter;
+  const activeCenter: [number, number] = controlledCenter || initialCenter;
+  const activeZoom: number = zoom ?? 5;
 
   return (
     <div className="relative w-full rounded-xl overflow-hidden border border-hairline shadow-card" style={{ height }}>
       {/* Map Interactive Layer Toggle HUD */}
-      <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md border border-hairline p-3.5 rounded-xl shadow-elevated flex flex-col space-y-2 text-xs">
-        <span className="font-semibold text-ink tracking-wider uppercase mb-0.5 text-[11px]">Active GIS Layers</span>
-        <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
-          <input
-            type="checkbox"
-            checked={showDisasters}
-            onChange={(e) => setShowDisasters(e.target.checked)}
-            className="rounded border-hairline text-coral focus:ring-0"
-          />
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-[#C64545]" />
-            Disaster Epicenters & Radius
-          </span>
-        </label>
-        <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
-          <input
-            type="checkbox"
-            checked={showSafeZones}
-            onChange={(e) => setShowSafeZones(e.target.checked)}
-            className="rounded border-hairline text-[#166534] focus:ring-0"
-          />
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-[#22C55E]" />
-            Safe Zones & Shelters ({safeZones.length})
-          </span>
-        </label>
-        <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
-          <input
-            type="checkbox"
-            checked={showResources}
-            onChange={(e) => setShowResources(e.target.checked)}
-            className="rounded border-hairline text-[#1E40AF] focus:ring-0"
-          />
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-[#3B82F6]" />
-            Emergency Resources ({resources.length})
-          </span>
-        </label>
-        <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
-          <input
-            type="checkbox"
-            checked={showReports}
-            onChange={(e) => setShowReports(e.target.checked)}
-            className="rounded border-hairline text-[#D97706] focus:ring-0"
-          />
-          <span className="flex items-center gap-1.5 font-medium">
-            <span className="w-2 h-2 rounded-full bg-[#D97706]" />
-            Citizen Incident Reports ({reports.length})
-          </span>
-        </label>
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[1000] flex flex-col items-end">
+        {/* Mobile Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setLayersExpanded(!layersExpanded)}
+          className="sm:hidden flex items-center space-x-1.5 px-3 py-1.5 bg-white/95 backdrop-blur-md border border-hairline rounded-xl shadow-elevated text-xs font-semibold text-ink"
+        >
+          <span>GIS Layers</span>
+          <span className="w-2 h-2 rounded-full bg-coral" />
+        </button>
+
+        {/* Layer Checkboxes */}
+        <div
+          className={`${
+            layersExpanded ? 'flex' : 'hidden'
+          } sm:flex bg-white/95 backdrop-blur-md border border-hairline p-3 sm:p-3.5 rounded-xl shadow-elevated flex-col space-y-2 text-xs mt-1.5 sm:mt-0 max-w-[calc(100vw-2rem)]`}
+        >
+          <div className="flex items-center justify-between pb-1 border-b border-hairline/60 gap-4">
+            <span className="font-semibold text-ink tracking-wider uppercase text-[11px]">Active GIS Layers</span>
+            <span className="text-[10px] font-mono text-ink-muted">Pan-India</span>
+          </div>
+          <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
+            <input
+              type="checkbox"
+              checked={showDisasters}
+              onChange={(e) => setShowDisasters(e.target.checked)}
+              className="rounded border-hairline text-coral focus:ring-0"
+            />
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-[#C64545]" />
+              Disaster Epicenters & Radius ({disasters.length})
+            </span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
+            <input
+              type="checkbox"
+              checked={showSafeZones}
+              onChange={(e) => setShowSafeZones(e.target.checked)}
+              className="rounded border-hairline text-[#166534] focus:ring-0"
+            />
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-[#22C55E]" />
+              Safe Zones & Shelters ({safeZones.length})
+            </span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
+            <input
+              type="checkbox"
+              checked={showResources}
+              onChange={(e) => setShowResources(e.target.checked)}
+              className="rounded border-hairline text-[#1E40AF] focus:ring-0"
+            />
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-[#3B82F6]" />
+              Emergency Resources ({resources.length})
+            </span>
+          </label>
+          <label className="flex items-center space-x-2 cursor-pointer text-ink-body hover:text-ink">
+            <input
+              type="checkbox"
+              checked={showReports}
+              onChange={(e) => setShowReports(e.target.checked)}
+              className="rounded border-hairline text-[#D97706] focus:ring-0"
+            />
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="w-2 h-2 rounded-full bg-[#D97706]" />
+              Citizen Incident Reports ({reports.length})
+            </span>
+          </label>
+
+          {onResetPanIndia && (
+            <div className="pt-2 border-t border-hairline">
+              <button
+                type="button"
+                onClick={onResetPanIndia}
+                className="w-full py-1 px-2 bg-canvas-subtle hover:bg-coral-subtle/80 hover:text-coral text-ink text-[11px] font-semibold rounded-lg border border-hairline transition flex items-center justify-center gap-1"
+              >
+                <span>🇮🇳</span> Reset to Pan-India View
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main Leaflet Container */}
       <MapContainer
-        center={center}
-        zoom={zoom}
+        center={activeCenter}
+        zoom={activeZoom}
         scrollWheelZoom={true}
         style={{ width: '100%', height: '100%' }}
       >
-        <ChangeView center={center} zoom={zoom} />
+        <ChangeView center={activeCenter} zoom={activeZoom} />
 
         {/* Standard OpenStreetMap Cartography */}
         <TileLayer
@@ -199,12 +236,18 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
               >
                 <Popup className="custom-popup">
                   <div className="p-2 space-y-1.5 max-w-xs">
-                    <Badge severity={d.severity} />
-                    <h4 className="font-semibold text-ink text-sm">{d.title}</h4>
-                    <p className="text-xs text-ink-body line-clamp-2">{d.description}</p>
-                    <div className="text-[11px] text-ink-muted pt-1 border-t border-hairline">
-                      <p><strong>Radius:</strong> {d.radiusKm} km</p>
-                      <p><strong>Affected Pop.:</strong> ~{d.affectedPopulationEst.toLocaleString()}</p>
+                    <div className="flex items-center justify-between gap-1">
+                      <Badge severity={d.severity} />
+                      <span className="text-[10px] font-mono text-ink-muted uppercase">{d.type}</span>
+                    </div>
+                    <h4 className="font-semibold text-ink text-sm leading-tight">{d.title}</h4>
+                    <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                      <span>📍</span> {d.locationName}
+                    </p>
+                    <p className="text-xs text-ink-body line-clamp-3">{d.description}</p>
+                    <div className="text-[11px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
+                      <span><strong>Radius:</strong> {d.radiusKm} km</span>
+                      <span><strong>Affected:</strong> ~{d.affectedPopulationEst.toLocaleString()}</span>
                     </div>
                   </div>
                 </Popup>
@@ -221,19 +264,37 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
               icon={createCustomIcon('#166534', '🛡️')}
             >
               <Popup className="custom-popup">
-                <div className="p-2 space-y-1 max-w-xs">
-                  <Badge status={sz.status} />
-                  <h4 className="font-semibold text-ink text-sm">{sz.name}</h4>
-                  <p className="text-xs text-ink-muted">{sz.locationName}</p>
-                  <div className="text-xs text-ink-body pt-1 space-y-0.5">
-                    <p>
-                      <strong>Capacity:</strong> {sz.capacityOccupied} / {sz.capacityTotal}
+                <div className="p-2 space-y-1.5 max-w-xs">
+                  <div className="flex items-center justify-between gap-1">
+                    <Badge status={sz.status} />
+                    <span className="text-[10px] font-mono text-ink-muted uppercase">{sz.type}</span>
+                  </div>
+                  <h4 className="font-semibold text-ink text-sm leading-tight">{sz.name}</h4>
+                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                    <span>📍</span> {sz.locationName}
+                  </p>
+                  <div className="text-xs text-ink-body pt-1 space-y-0.5 border-t border-hairline">
+                    <p className="flex justify-between">
+                      <strong>Capacity:</strong>
+                      <span className="font-semibold text-emerald-700">{sz.capacityOccupied} / {sz.capacityTotal}</span>
                     </p>
                     {sz.elevationMeters && (
-                      <p><strong>Elevation:</strong> {sz.elevationMeters}m MSL</p>
+                      <p className="flex justify-between text-ink-muted">
+                        <span>Elevation:</span>
+                        <span>{sz.elevationMeters}m MSL</span>
+                      </p>
+                    )}
+                    {sz.contactPerson && (
+                      <p className="text-[11px] text-ink-muted truncate">
+                        <strong>Nodal:</strong> {sz.contactPerson}
+                      </p>
                     )}
                     {sz.contactPhone && (
-                      <p><strong>Contact:</strong> {sz.contactPhone}</p>
+                      <p className="pt-0.5">
+                        <a href={`tel:${sz.contactPhone}`} className="text-xs font-semibold text-coral hover:underline">
+                          📞 {sz.contactPhone}
+                        </a>
+                      </p>
                     )}
                   </div>
                 </div>
@@ -250,12 +311,20 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
               icon={createCustomIcon('#1E40AF', '🏥')}
             >
               <Popup className="custom-popup">
-                <div className="p-2 space-y-1 max-w-xs">
-                  <Badge status={resItem.status} />
-                  <h4 className="font-semibold text-ink text-sm">{resItem.name}</h4>
+                <div className="p-2 space-y-1.5 max-w-xs">
+                  <div className="flex items-center justify-between gap-1">
+                    <Badge status={resItem.status} />
+                    <span className="text-[10px] font-mono text-ink-muted uppercase">{resItem.category}</span>
+                  </div>
+                  <h4 className="font-semibold text-ink text-sm leading-tight">{resItem.name}</h4>
+                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                    <span>📍</span> {resItem.locationName}
+                  </p>
                   <p className="text-xs text-ink-body">{resItem.details}</p>
-                  <p className="text-xs font-semibold text-[#1E40AF]">
-                    📞 {resItem.contactNumber}
+                  <p className="text-xs font-semibold text-[#1E40AF] pt-1 border-t border-hairline">
+                    <a href={`tel:${resItem.contactNumber}`} className="hover:underline flex items-center gap-1">
+                      <span>📞</span> {resItem.contactNumber}
+                    </a>
                   </p>
                 </div>
               </Popup>
@@ -277,13 +346,16 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
               }}
             >
               <Popup className="custom-popup">
-                <div className="p-2 space-y-1 max-w-xs">
+                <div className="p-2 space-y-1.5 max-w-xs">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[10px] font-mono text-ink-muted font-bold">{rpt.trackingCode}</span>
                     <Badge status={rpt.status} />
                   </div>
-                  <h4 className="font-semibold text-ink text-sm">{rpt.title}</h4>
-                  <p className="text-xs text-ink-body line-clamp-2">{rpt.description}</p>
+                  <h4 className="font-semibold text-ink text-sm leading-tight">{rpt.title}</h4>
+                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                    <span>📍</span> {rpt.locationName}
+                  </p>
+                  <p className="text-xs text-ink-body line-clamp-3">{rpt.description}</p>
                   {rpt.imageUrl && (
                     <img
                       src={rpt.imageUrl}
@@ -291,6 +363,10 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
                       className="w-full h-24 object-cover rounded-md mt-1 border border-hairline"
                     />
                   )}
+                  <div className="text-[10px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
+                    <span>Reporter: {rpt.citizenName || 'Verified Citizen'}</span>
+                    <span className="font-semibold text-coral">{rpt.triagePriority} Priority</span>
+                  </div>
                 </div>
               </Popup>
             </Marker>

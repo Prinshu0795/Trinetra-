@@ -72,58 +72,8 @@ async function seedScenario(db = prisma) {
         },
     });
     console.log(`✓ Active Disaster created: ${disaster.title}`);
-    // 3. Seed Safe Zones
-    const safeZonesData = [
-        {
-            name: 'Guwahati Stadium Emergency Relief Camp',
-            type: 'High Elevation Stadium',
-            locationName: 'Nehru Stadium Complex, Ulubari, Guwahati',
-            latitude: 26.1780,
-            longitude: 91.7580,
-            capacityTotal: 1200,
-            capacityOccupied: 450,
-            status: 'OPEN',
-            elevationMeters: 68.0,
-            amenities: JSON.stringify(['Drinking Water', 'First Aid Center', 'Power Generator', 'Dry Food Packets']),
-            contactPerson: 'C. Baruah (Relief Officer)',
-            contactPhone: '+91 98640 11223',
-            source: 'District Disaster Management Authority (DDMA)',
-        },
-        {
-            name: 'Cotton University High Ground Shelter',
-            type: 'Educational Institution',
-            locationName: 'Panbazar Campus, Guwahati',
-            latitude: 26.1895,
-            longitude: 91.7485,
-            capacityTotal: 600,
-            capacityOccupied: 580,
-            status: 'NEAR_CAPACITY',
-            elevationMeters: 62.5,
-            amenities: JSON.stringify(['Drinking Water', 'Medical Camp', 'Sanitation Facilities']),
-            contactPerson: 'Dr. P. Kalita',
-            contactPhone: '+91 98640 33445',
-            source: 'DDMA / Education Dept',
-        },
-        {
-            name: 'Dispur Administrative Community Center',
-            type: 'Reinforced Community Center',
-            locationName: 'Capital Complex, Dispur, Guwahati',
-            latitude: 26.1420,
-            longitude: 91.7890,
-            capacityTotal: 800,
-            capacityOccupied: 210,
-            status: 'OPEN',
-            elevationMeters: 74.0,
-            amenities: JSON.stringify(['Drinking Water', 'Kitchen Facility', 'Beds & Blankets', '24x7 Emergency Power']),
-            contactPerson: 'M. Saikia',
-            contactPhone: '+91 98640 55667',
-            source: 'ASDMA State Operations',
-        },
-    ];
-    for (const sz of safeZonesData) {
-        await db.safeZone.create({ data: sz });
-    }
-    console.log(`✓ Safe Zones created: ${safeZonesData.length}`);
+    // 3. Safe Zones (No mock safe zones seeded; populated dynamically by authorities)
+    console.log('✓ Safe Zones: 0 (Awaiting real-time designation by district authorities)');
     // 4. Seed Emergency Resources
     const resourcesData = [
         {

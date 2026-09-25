@@ -1,6 +1,6 @@
 // client/src/types/index.ts
 
-export type Role = 'CITIZEN' | 'AUTHORITY' | 'RESPONDER';
+export type Role = 'CITIZEN' | 'AUTHORITY' | 'RESPONDER' | 'ADMIN';
 
 export type DisasterType =
   | 'FLOOD'
@@ -127,13 +127,14 @@ export interface SafeZone {
   capacityTotal: number;
   capacityOccupied: number;
   status: SafeZoneStatus;
-  amenities: string;
+  amenities: string | string[];
   contactPerson?: string | null;
   contactPhone?: string | null;
   elevationMeters?: number | null;
   source: string;
-  lastVerifiedAt: string;
+  lastVerifiedAt?: string;
   distanceKm?: number;
+  occupancyPercentage?: number;
 }
 
 export interface EmergencyResource {
@@ -191,3 +192,55 @@ export interface ApiResponse<T = any> {
     isFallback?: boolean;
   };
 }
+
+export type RelayEmergencyType =
+  | 'FLOOD_TRAPPED'
+  | 'MEDICAL_CRITICAL'
+  | 'STRUCTURAL_COLLAPSE'
+  | 'FOOD_WATER_SHORTAGE'
+  | 'GENERAL_SOS';
+
+export interface RelayHopNode {
+  nodeId: string;
+  role: 'VICTIM' | 'RELAY_HOP' | 'GATEWAY_UPLINK';
+  timestamp: string;
+  rssi?: number;
+  batteryLevel?: number;
+  protocol?: 'BLE_5_3' | 'WIFI_DIRECT' | 'LORA' | 'WEBRTC';
+}
+
+export interface RelayPacket {
+  id: string;
+  packetId: string;
+  victimName: string;
+  victimPhone?: string | null;
+  latitude: number;
+  longitude: number;
+  altitudeMeters?: number | null;
+  emergencyType: RelayEmergencyType | string;
+  severity: SeverityLevel;
+  message: string;
+  batteryLevel?: number | null;
+  hopCount: number;
+  relayChainJson: string;
+  originTimestamp: string;
+  gatewayNodeId?: string | null;
+  status: 'BUFFERED' | 'DELIVERED' | 'DISPATCHED_112' | 'RESOLVED';
+  dispatched112At?: string | null;
+  responderNotes?: string | null;
+  incidentReportId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RelayMeshStats {
+  totalRelayed: number;
+  deliveredToCloud: number;
+  dispatched112: number;
+  meshDeliverySuccessRate: string;
+  averageHops: number;
+  averageVictimBatteryPercent: number;
+  activeRelayProtocol: string;
+  meshStatus: string;
+}
+

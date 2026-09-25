@@ -76,10 +76,10 @@ export const ResourceManagePage: React.FC = () => {
   };
 
   return (
-    <div className="flex bg-canvas min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row bg-canvas min-h-[calc(100vh-4rem)]">
       <AuthoritySidebar />
 
-      <main className="flex-1 p-6 space-y-6 overflow-x-hidden">
+      <main className="flex-1 p-3.5 sm:p-6 space-y-6 overflow-x-hidden">
         {/* Header */}
         <div className="border-b border-hairline pb-4">
           <div className="flex items-center space-x-2">

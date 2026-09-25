@@ -44,7 +44,7 @@ export const CitizenPortalPage: React.FC = () => {
 
         // 1. Fetch live operational telemetry in parallel
         const [disastersRes, safeZonesRes, alertsRes, reportsRes] = await Promise.all([
-          api.get('/disasters'),
+          api.get(`/disasters${latQuery}`),
           api.get(`/safe-zones${latQuery}`),
           api.get('/alerts?status=ACTIVE'),
           api.get('/reports?status=ALL'),
@@ -110,18 +110,18 @@ export const CitizenPortalPage: React.FC = () => {
   const displayedReports = reportTab === 'my' ? userReports : allReports;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 font-sans">
+    <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8 font-sans">
       {/* 1. CITIZEN PERSONAL SAFETY STATUS BANNER */}
-      <section className="bg-white border border-hairline rounded-2xl p-6 sm:p-8 shadow-card space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-6">
+      <section className="bg-white border border-hairline rounded-2xl p-4 sm:p-8 shadow-card space-y-5 sm:space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-hairline pb-4 sm:pb-6">
           <div className="space-y-1">
             <div className="flex items-center space-x-2">
               <span className="flex h-2 w-2 rounded-full bg-[#22C55E]" />
-              <span className="text-xs font-mono font-semibold text-coral uppercase tracking-wider">
+              <span className="text-[10px] sm:text-xs font-mono font-semibold text-coral uppercase tracking-wider">
                 Citizen Safety Portal • Connected
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-serif font-normal text-ink">
+            <h1 className="text-xl sm:text-3xl font-serif font-normal text-ink">
               Welcome, {user?.fullName || 'Citizen'}
             </h1>
             <p className="text-xs text-ink-muted font-mono">
@@ -132,28 +132,28 @@ export const CitizenPortalPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 shrink-0">
             <Link
               to="/report"
-              className="inline-flex items-center space-x-2 px-5 py-2.5 bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs font-semibold uppercase tracking-wider rounded-lg shadow-sm transition"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs font-semibold rounded-xl shadow-xs transition whitespace-nowrap"
             >
-              <FilePlus2 className="w-4 h-4" />
-              <span>Submit Ground Intel</span>
+              <FilePlus2 className="w-3.5 h-3.5" />
+              <span>Submit Report</span>
             </Link>
 
             <Link
               to="/geo-intelligence"
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white hover:bg-canvas text-ink border border-hairline text-xs font-semibold rounded-lg shadow-card transition"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-canvas text-ink border border-hairline text-xs font-semibold rounded-xl shadow-card transition whitespace-nowrap"
             >
-              <Activity className="w-4 h-4 text-coral" />
+              <Activity className="w-3.5 h-3.5 text-coral" />
               <span>Geo-Intelligence</span>
             </Link>
 
             <Link
               to="/map"
-              className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white hover:bg-canvas text-ink border border-hairline text-xs font-semibold rounded-lg shadow-card transition"
+              className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white hover:bg-canvas text-ink border border-hairline text-xs font-semibold rounded-xl shadow-card transition whitespace-nowrap"
             >
-              <MapPin className="w-4 h-4 text-coral" />
+              <MapPin className="w-3.5 h-3.5 text-coral" />
               <span>Live GIS Map</span>
             </Link>
           </div>
@@ -474,7 +474,17 @@ export const CitizenPortalPage: React.FC = () => {
                 Designated refuge haven for evacuees in{' '}
                 <span className="font-semibold text-ink">{nearestShelter.locationName}</span>.
                 {nearestShelter.amenities
-                  ? ` On-site provisions: ${JSON.parse(nearestShelter.amenities).join(', ')}.`
+                  ? ` On-site provisions: ${
+                      Array.isArray(nearestShelter.amenities)
+                        ? nearestShelter.amenities.join(', ')
+                        : (() => {
+                            try {
+                              return JSON.parse(nearestShelter.amenities as string).join(', ');
+                            } catch {
+                              return nearestShelter.amenities;
+                            }
+                          })()
+                    }.`
                   : ''}
                 {nearestShelter.contactPerson
                   ? ` Camp Administrator: ${nearestShelter.contactPerson}.`

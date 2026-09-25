@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { sendSuccess } from '../utils/responseEnvelope.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { calculateHaversineDistanceKm } from '../utils/gis.js';
+import { DisasterIngestionService } from '../services/DisasterIngestionService.js';
 
 const prisma = new PrismaClient();
 
@@ -41,15 +42,36 @@ export async function listDisasters(req: Request, res: Response, next: NextFunct
       reportCount: d._count.incidentReports,
     }));
 
-    if (lat && lng) {
-      const userLat = parseFloat(lat as string);
-      const userLng = parseFloat(lng as string);
-      if (!isNaN(userLat) && !isNaN(userLng)) {
-        results = results.map((d) => ({
+    const userLat = lat ? parseFloat(lat as string) : null;
+    const userLng = lng ? parseFloat(lng as string) : null;
+
+    if (userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng)) {
+      results = results.map((d) => ({
+        ...d,
+        distanceKm: calculateHaversineDistanceKm(userLat, userLng, d.latitude, d.longitude),
+      }));
+
+      // Proximity Sorting: Nearest disaster to user location is ALWAYS #1
+      results.sort((a: any, b: any) => (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999));
+    } else {
+      // Baseline: Prioritize domestic Indian operational sector disasters
+      const defaultNationalLat = 26.1445;
+      const defaultNationalLng = 91.7362;
+      results = results.map((d) => {
+        const isIndia = d.latitude >= 6 && d.latitude <= 38 && d.longitude >= 68 && d.longitude <= 98;
+        const dist = calculateHaversineDistanceKm(defaultNationalLat, defaultNationalLng, d.latitude, d.longitude);
+        return {
           ...d,
-          distanceKm: calculateHaversineDistanceKm(userLat, userLng, d.latitude, d.longitude),
-        }));
-      }
+          distanceKm: dist,
+          isDomestic: isIndia,
+        };
+      });
+
+      results.sort((a: any, b: any) => {
+        if (a.isDomestic && !b.isDomestic) return -1;
+        if (!a.isDomestic && b.isDomestic) return 1;
+        return (a.distanceKm ?? 999999) - (b.distanceKm ?? 999999);
+      });
     }
 
     return sendSuccess(res, results);
@@ -162,3 +184,54 @@ export async function updateDisaster(req: Request, res: Response, next: NextFunc
     next(error);
   }
 }
+
+export async function syncLiveDisasters(req: Request, res: Response, next: NextFunction) {
+  try {
+    const report = await DisasterIngestionService.syncAllLiveFeeds();
+    return sendSuccess(res, {
+      message: `Live feeds synchronized successfully. Ingested ${report.totalSynced} items.`,
+      report,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getLiveDisasterSummary(req: Request, res: Response, next: NextFunction) {
+  try {
+    const totalActive = await prisma.disaster.count({ where: { status: 'ACTIVE' } });
+    const usgsCount = await prisma.disaster.count({ where: { source: { contains: 'USGS' } } });
+    const gdacsCount = await prisma.disaster.count({ where: { source: { contains: 'GDACS' } } });
+    const eonetCount = await prisma.disaster.count({ where: { source: { contains: 'NASA' } } });
+    const localCount = await prisma.disaster.count({
+      where: {
+        AND: [
+          { NOT: { source: { contains: 'USGS' } } },
+          { NOT: { source: { contains: 'GDACS' } } },
+          { NOT: { source: { contains: 'NASA' } } },
+        ],
+      },
+    });
+
+    const recentCritical = await prisma.disaster.findMany({
+      where: { severity: 'CRITICAL', status: 'ACTIVE' },
+      take: 5,
+      orderBy: { declaredAt: 'desc' },
+    });
+
+    return sendSuccess(res, {
+      totalActive,
+      sources: {
+        usgs: usgsCount,
+        gdacs: gdacsCount,
+        nasaEonet: eonetCount,
+        localOrAuthority: localCount,
+      },
+      recentCritical,
+      lastEvaluatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+

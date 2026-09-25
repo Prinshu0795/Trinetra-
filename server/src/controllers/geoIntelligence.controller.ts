@@ -11,6 +11,7 @@ import {
   findNearbyAlerts,
   getFloodBuffers,
 } from '../services/GeoService.js';
+import { ShelterDiscoveryService } from '../services/ShelterDiscoveryService.js';
 
 export async function searchLocation(req: Request, res: Response, next: NextFunction) {
   try {
@@ -19,33 +20,45 @@ export async function searchLocation(req: Request, res: Response, next: NextFunc
       throw new ApiError('Query parameter "q" is required', 400);
     }
 
-    const token = process.env.MAPBOX_ACCESS_TOKEN || 'pk.fake';
-    const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(
-      query
-    )}&country=in&access_token=${token}`;
-    
-    // In demo mode or if missing token, fallback to a mock response for Ayodhya/Lucknow.
-    if (token === 'pk.fake') {
-      const isAyodhya = query.toLowerCase().includes('ayodhya');
-      return sendSuccess(res, {
-        features: [
-          {
-            properties: {
-              name: isAyodhya ? 'Ayodhya' : query,
-              full_address: isAyodhya ? 'Ayodhya, Uttar Pradesh, India' : `${query}, India`,
-              coordinates: {
-                longitude: isAyodhya ? 82.2044 : 80.9462, // Default Lucknow if not Ayodhya
-                latitude: isAyodhya ? 26.7997 : 26.8467,
-              }
-            }
-          }
-        ]
-      });
+    const token = process.env.MAPBOX_ACCESS_TOKEN;
+    if (token && token.startsWith('pk.eyJ')) {
+      const url = `https://api.mapbox.com/search/geocode/v6/forward?q=${encodeURIComponent(
+        query
+      )}&country=in&access_token=${token}`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        return sendSuccess(res, data);
+      }
     }
 
-    const response = await fetch(url);
-    const data = await response.json();
-    return sendSuccess(res, data);
+    // Real OpenStreetMap Nominatim Live Geocoding for India (Live public GIS, no mock data)
+    const osmUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+      query
+    )}&format=json&countrycodes=in&limit=5&addressdetails=1`;
+    const osmResponse = await fetch(osmUrl, {
+      headers: {
+        'User-Agent': 'TRINETRA-Disaster-Platform/1.0 (Emergency Situational Awareness; contact@trinetra.gov.in)',
+      },
+    });
+
+    if (!osmResponse.ok) {
+      throw new ApiError('Geocoding service currently unavailable', 503);
+    }
+
+    const osmData = (await osmResponse.json()) as any[];
+    const features = osmData.map((item) => ({
+      properties: {
+        name: item.name || item.display_name.split(',')[0].trim(),
+        full_address: item.display_name,
+        coordinates: {
+          longitude: parseFloat(item.lon),
+          latitude: parseFloat(item.lat),
+        },
+      },
+    }));
+
+    return sendSuccess(res, { features });
   } catch (error) {
     next(error);
   }
@@ -61,10 +74,10 @@ export async function getLocationIntelligence(req: Request, res: Response, next:
       throw new ApiError('Latitude and longitude are required', 400);
     }
 
-    const [weather, resources, safeZones, incidents, alerts, allFloodBuffers] = await Promise.all([
+    const [weather, resources, shelterResult, incidents, alerts, allFloodBuffers] = await Promise.all([
       getWeatherData(lat, lng),
       findNearbyResources(lat, lng, radius),
-      findNearbySafeZones(lat, lng, radius),
+      ShelterDiscoveryService.getInstantShelters(lat, lng, radius),
       findNearbyIncidents(lat, lng, radius),
       findNearbyAlerts(lat, lng, radius),
       getFloodBuffers(),
@@ -83,7 +96,12 @@ export async function getLocationIntelligence(req: Request, res: Response, next:
       risk,
       weather,
       floodBuffers: allFloodBuffers,
-      safeCamps: safeZones,
+      safeCamps: shelterResult.shelters,
+      shelterTelemetry: {
+        verifiedCount: shelterResult.verifiedCount,
+        osmCount: shelterResult.osmCount,
+        cached: shelterResult.cached,
+      },
       medicalFacilities,
       responseBases,
       citizenIncidents: incidents,
@@ -91,8 +109,10 @@ export async function getLocationIntelligence(req: Request, res: Response, next:
       sources: [
         { name: 'TRINETRA RISK MODEL', type: 'TRINETRA MODEL' },
         { name: 'Open-Meteo', type: 'WEATHER MODEL' },
-        { name: 'Citizen Report', type: 'COMMUNITY' },
-        { name: 'TRINETRA DEMO DATA', type: 'DEMO DATA' },
+        { name: 'OpenStreetMap Overpass', type: 'DYNAMIC SHELTER GIS' },
+        { name: 'USGS & GDACS', type: 'REALTIME DISASTER FEEDS' },
+        { name: 'Citizen Eyewitness', type: 'COMMUNITY REPORTS' },
+        { name: 'TRINETRA DATABASE', type: 'VERIFIED REGISTRY' },
       ],
     });
   } catch (error) {

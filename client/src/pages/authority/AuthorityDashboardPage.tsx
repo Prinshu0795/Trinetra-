@@ -34,11 +34,38 @@ export const AuthorityDashboardPage: React.FC = () => {
         api.get('/safe-zones'),
       ]);
 
-      if (disastersRes.data.success) setDisasters(disastersRes.data.data);
-      if (reportsRes.data.success) setReports(reportsRes.data.data);
-      if (alertsRes.data.success) setAlerts(alertsRes.data.data);
-      if (safeZonesRes.data.success) setSafeZones(safeZonesRes.data.data);
+      if (disastersRes.data?.success) setDisasters(disastersRes.data.data);
+      if (reportsRes.data?.success) setReports(reportsRes.data.data);
+      if (alertsRes.data?.success) setAlerts(alertsRes.data.data);
+      if (safeZonesRes.data?.success) setSafeZones(safeZonesRes.data.data);
     } catch (err) {
+      // Fallback directly to live Supabase database
+      const {
+        isSupabaseConfigured,
+        supabaseGetDisasters,
+        supabaseGetIncidentReports,
+        supabaseGetAlerts,
+        supabaseGetSafeZones,
+      } = await import('../../lib/supabase');
+
+      if (isSupabaseConfigured) {
+        try {
+          const [supaDisasters, supaReports, supaAlerts, supaSafeZones] = await Promise.all([
+            supabaseGetDisasters().catch(() => []),
+            supabaseGetIncidentReports().catch(() => []),
+            supabaseGetAlerts().catch(() => []),
+            supabaseGetSafeZones().catch(() => []),
+          ]);
+
+          if (supaDisasters.length) setDisasters(supaDisasters as any);
+          if (supaReports.length) setReports(supaReports as any);
+          if (supaAlerts.length) setAlerts(supaAlerts as any);
+          if (supaSafeZones.length) setSafeZones(supaSafeZones as any);
+          return;
+        } catch (supaErr) {
+          console.error('Supabase dashboard fallback warning:', supaErr);
+        }
+      }
       console.error('Failed to load authority command telemetry:', err);
     }
   };
@@ -50,12 +77,12 @@ export const AuthorityDashboardPage: React.FC = () => {
   }, []);
 
   const handleResetScenario = async () => {
-    if (!window.confirm('Reset database to clean Brahmaputra Flood demo scenario?')) return;
+    if (!window.confirm('Reset database to baseline Brahmaputra Flood operational state?')) return;
     try {
       setResetting(true);
       const res = await api.post('/dev/reset-scenario');
       if (res.data.success) {
-        setResetSuccess('Scenario reset successfully!');
+        setResetSuccess('Operational state reset successfully!');
         await fetchCommandData();
         setTimeout(() => setResetSuccess(null), 3000);
       }
@@ -72,25 +99,25 @@ export const AuthorityDashboardPage: React.FC = () => {
   const evacuationOrdersCount = alerts.filter((a) => a.type === 'EVACUATION_ORDER' || a.severity === 'CRITICAL').length;
 
   return (
-    <div className="flex bg-canvas min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row bg-canvas min-h-[calc(100vh-4rem)]">
       <AuthoritySidebar />
 
-      <main className="flex-1 p-6 space-y-6 overflow-x-hidden">
+      <main className="flex-1 p-3.5 sm:p-6 space-y-6 overflow-x-hidden">
         {/* Top Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-hairline pb-4">
           <div>
             <div className="flex items-center space-x-2">
               <span className="flex h-2 w-2 rounded-full bg-[#22C55E]" />
-              <span className="text-xs font-mono font-semibold text-coral uppercase tracking-widest">
+              <span className="text-[10px] sm:text-xs font-mono font-semibold text-coral uppercase tracking-widest">
                 ASDMA / NDRF State Emergency Operations Center (SEOC)
               </span>
             </div>
-            <h1 className="text-2xl font-serif font-normal text-ink tracking-tight mt-1">
+            <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink tracking-tight mt-1">
               Incident Command & Situational Control Desk
             </h1>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
             {resetSuccess && (
               <span className="text-xs text-[#166534] font-medium animate-fade-in">
                 ✓ {resetSuccess}
@@ -100,18 +127,18 @@ export const AuthorityDashboardPage: React.FC = () => {
               onClick={handleResetScenario}
               disabled={resetting}
               className="flex items-center space-x-1.5 px-3 py-1.5 bg-white hover:bg-canvas text-ink border border-hairline rounded-lg text-xs font-semibold shadow-card transition"
-              title="One-click deterministic reset for SIH jury presentation"
+              title="Deterministic reset to national operational baseline"
             >
               <RotateCcw className={`w-3.5 h-3.5 text-coral ${resetting ? 'animate-spin' : ''}`} />
-              <span>{resetting ? 'Resetting...' : 'Reset Demo Scenario'}</span>
+              <span>{resetting ? 'Resetting...' : 'Reset Operational State'}</span>
             </button>
 
             {user?.role === 'AUTHORITY' && (
               <Link
                 to="/authority/alerts"
-                className="flex items-center space-x-1.5 px-4 py-2 bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs font-semibold rounded-lg shadow-sm transition"
+                className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs font-semibold rounded-lg shadow-sm transition"
               >
-                <Radio className="w-4 h-4" />
+                <Radio className="w-3.5 h-3.5" />
                 <span>Publish EAS Alert</span>
               </Link>
             )}
@@ -119,7 +146,7 @@ export const AuthorityDashboardPage: React.FC = () => {
         </div>
 
         {/* 1. Command KPI Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-white border border-hairline p-4 rounded-xl space-y-1 shadow-card">
             <div className="flex items-center justify-between text-xs text-ink-muted font-semibold uppercase">
               <span>Active Disasters</span>

@@ -9,11 +9,47 @@ import { ApiError } from '../middleware/errorHandler.js';
 
 const prisma = new PrismaClient();
 
+/**
+ * Returns public system auth status: whether DB is empty (allowing initial bootstrap)
+ * or production secured (requiring Admin to create accounts).
+ */
+export async function getSystemStatus(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const totalUsers = await prisma.user.count();
+    return sendSuccess(res, {
+      totalUsers,
+      allowsBootstrap: totalUsers === 0,
+      registrationRestricted: totalUsers > 0,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Create a new account.
+ * - If DB has 0 users: Allows bootstrapping the initial ADMIN account.
+ * - If DB has existing users: STRICTLY requires caller to be an authenticated ADMIN.
+ * Prevents unauthorized public registration and data leaks.
+ */
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password, fullName, phone, role, badgeNumber, department } = req.body;
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const totalUsers = await prisma.user.count();
+
+    // If accounts already exist, only an authenticated ADMIN can create accounts
+    if (totalUsers > 0) {
+      if (!req.user || req.user.role !== 'ADMIN') {
+        throw new ApiError(
+          'Registration is restricted. Only system administrators can provision new accounts.',
+          403,
+          'REGISTRATION_RESTRICTED'
+        );
+      }
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
     if (existingUser) {
       throw new ApiError('An account with this email address already exists', 409, 'EMAIL_EXISTS');
     }
@@ -21,20 +57,24 @@ export async function register(req: Request, res: Response, next: NextFunction) 
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
+    // Initial bootstrap user is forced to ADMIN
+    const assignedRole = totalUsers === 0 ? 'ADMIN' : (role || 'CITIZEN');
+
     const newUser = await prisma.user.create({
       data: {
-        email,
+        email: email.toLowerCase().trim(),
         passwordHash,
-        fullName,
-        phone,
-        role: role || 'CITIZEN',
-        badgeNumber,
-        department,
+        fullName: fullName.trim(),
+        phone: phone?.trim() || null,
+        role: assignedRole,
+        badgeNumber: badgeNumber?.trim() || null,
+        department: department?.trim() || null,
       },
       select: {
         id: true,
         email: true,
         fullName: true,
+        phone: true,
         role: true,
         badgeNumber: true,
         department: true,
@@ -42,18 +82,30 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       },
     });
 
-    const token = jwt.sign(
-      {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-        fullName: newUser.fullName,
-      },
-      config.jwtSecret,
-      { expiresIn: config.jwtExpiresIn as any }
-    );
+    // If this is the initial bootstrap, log the new admin in directly
+    if (totalUsers === 0) {
+      const token = jwt.sign(
+        {
+          id: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          fullName: newUser.fullName,
+        },
+        config.jwtSecret,
+        { expiresIn: config.jwtExpiresIn as any }
+      );
+      return sendSuccess(res, { user: newUser, token, isBootstrap: true }, 201);
+    }
 
-    return sendSuccess(res, { user: newUser, token }, 201);
+    // Admin created another account: do not issue token (Admin remains logged in)
+    return sendSuccess(
+      res,
+      {
+        user: newUser,
+        message: `Account for ${newUser.fullName} (${newUser.role}) successfully created.`,
+      },
+      201
+    );
   } catch (error) {
     next(error);
   }
@@ -63,7 +115,9 @@ export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+    });
     if (!user) {
       throw new ApiError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
     }
@@ -122,6 +176,55 @@ export async function getMe(req: Request, res: Response, next: NextFunction) {
     }
 
     return sendSuccess(res, { user });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * List all registered users (Admin only)
+ */
+export async function listUsers(_req: Request, res: Response, next: NextFunction) {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        phone: true,
+        role: true,
+        badgeNumber: true,
+        department: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return sendSuccess(res, { users, total: users.length });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Delete a user account (Admin only)
+ */
+export async function deleteUser(req: Request, res: Response, next: NextFunction) {
+  try {
+    const id = String(req.params.id);
+
+    if (req.user?.id === id) {
+      throw new ApiError('You cannot delete your own administrative account', 400, 'SELF_DELETE_PREVENTED');
+    }
+
+    const targetUser = await prisma.user.findUnique({ where: { id } });
+    if (!targetUser) {
+      throw new ApiError('User not found', 404, 'NOT_FOUND');
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    return sendSuccess(res, { message: `Account for ${targetUser.email} has been deleted.` });
   } catch (error) {
     next(error);
   }

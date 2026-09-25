@@ -12,6 +12,7 @@ import { DisasterType } from '../../types';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { isSupabaseConfigured, supabaseSubmitIncidentReport } from '../../lib/supabase';
 
 const DISASTER_TYPES: Array<{ type: DisasterType; label: string; icon: string }> = [
   { type: 'FLOOD', label: 'Flood / Waterlogging', icon: '🌊' },
@@ -70,28 +71,67 @@ export const ReportIncidentPage: React.FC = () => {
 
     try {
       setSubmitting(true);
-      const formData = new FormData();
-      formData.append('disasterType', disasterType);
-      formData.append('title', title);
-      formData.append('description', description);
-      formData.append('locationName', locationName);
-      formData.append('latitude', reportLat);
-      formData.append('longitude', reportLng);
-      formData.append('citizenName', citizenName);
-      formData.append('citizenPhone', citizenPhone);
-      if (imageFile) {
-        formData.append('image', imageFile);
+      let receiptData: any = null;
+
+      // 1. Try local Express API (for local uploads, real-time alerts, etc.)
+      try {
+        const formData = new FormData();
+        formData.append('disasterType', disasterType);
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('locationName', locationName);
+        formData.append('latitude', reportLat);
+        formData.append('longitude', reportLng);
+        formData.append('citizenName', citizenName);
+        formData.append('citizenPhone', citizenPhone);
+        if (imageFile) {
+          formData.append('image', imageFile);
+        }
+
+        const res = await api.post('/reports', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (res.data?.success) {
+          receiptData = res.data.data;
+        }
+      } catch (backendErr) {
+        console.warn('Local API report endpoint offline or failed, falling back to Supabase:', backendErr);
       }
 
-      const res = await api.post('/reports', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // 2. Persist directly to Supabase public.incident_reports database
+      if (isSupabaseConfigured) {
+        try {
+          const supaReport = await supabaseSubmitIncidentReport({
+            disasterType,
+            title,
+            description,
+            locationName,
+            latitude: parseFloat(reportLat) || 26.14,
+            longitude: parseFloat(reportLng) || 91.73,
+            citizenName,
+            citizenPhone,
+            imageUrl: receiptData?.imageUrl || null,
+          });
 
-      if (res.data.success) {
-        setSubmittedReceipt(res.data.data);
+          if (!receiptData) {
+            receiptData = supaReport;
+          }
+        } catch (supaErr: any) {
+          console.warn('Supabase report insertion note:', supaErr);
+          if (!receiptData) {
+            throw supaErr;
+          }
+        }
+      }
+
+      if (receiptData) {
+        setSubmittedReceipt(receiptData);
+      } else {
+        throw new Error('Failed to submit incident report. Please verify connection.');
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.error?.message || 'Failed to submit incident report');
+      setErrorMsg(err.message || err.response?.data?.error?.message || 'Failed to submit incident report');
     } finally {
       setSubmitting(false);
     }
@@ -150,25 +190,25 @@ export const ReportIncidentPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-serif font-normal text-ink flex items-center gap-2">
-          <FilePlus2 className="w-5 h-5 text-coral" />
+        <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink flex items-center gap-2">
+          <FilePlus2 className="w-5 h-5 text-coral shrink-0" />
           <span>Report Live Disaster Incident</span>
         </h1>
-        <p className="text-sm text-ink-muted mt-1">
+        <p className="text-xs sm:text-sm text-ink-muted mt-1">
           Submit verified ground eyewitness intel. Accurate reports assist commanders in immediate life-safety triage and rescue boat dispatch.
         </p>
       </div>
 
       {errorMsg && (
-        <div className="p-4 bg-[#FDF2F2] border border-[#F5C2C2] rounded-xl text-[#9E2A2B] text-sm flex items-center gap-3">
+        <div className="p-3.5 sm:p-4 bg-[#FDF2F2] border border-[#F5C2C2] rounded-xl text-[#9E2A2B] text-xs sm:text-sm flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 flex-shrink-0 text-[#C64545]" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white border border-hairline rounded-2xl p-6 sm:p-8 space-y-6 shadow-card">
+      <form onSubmit={handleSubmit} className="bg-white border border-hairline rounded-2xl p-4 sm:p-8 space-y-5 sm:space-y-6 shadow-card">
         {/* Step 1: Select Disaster Category */}
         <div className="space-y-3">
           <label className="block text-sm font-semibold text-ink">
@@ -303,7 +343,8 @@ export const ReportIncidentPage: React.FC = () => {
                 </span>
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*"
+                  capture="environment"
                   onChange={handleImageChange}
                   className="hidden"
                 />

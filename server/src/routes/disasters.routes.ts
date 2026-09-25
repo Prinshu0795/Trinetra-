@@ -5,6 +5,8 @@ import {
   getDisasterById,
   createDisaster,
   updateDisaster,
+  syncLiveDisasters,
+  getLiveDisasterSummary,
 } from '../controllers/disaster.controller.js';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
@@ -12,6 +14,8 @@ import { createDisasterSchema, updateDisasterSchema } from '../schemas/index.js'
 
 const router = Router();
 
+router.get('/sync-summary', getLiveDisasterSummary);
+router.post('/sync-live', syncLiveDisasters);
 router.get('/', listDisasters);
 router.get('/:id', getDisasterById);
 router.post(

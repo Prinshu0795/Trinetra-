@@ -1,7 +1,7 @@
 // client/src/context/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, Role } from '../types';
-import api from '../lib/api';
+import { supabase, isSupabaseConfigured, mapSupabaseUserToTrinetraUser } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -21,19 +21,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('trinetra_token');
-    const savedUser = localStorage.getItem('trinetra_user');
+    const initAuth = async () => {
+      const savedToken = localStorage.getItem('trinetra_token');
+      const savedUser = localStorage.getItem('trinetra_user');
 
-    if (savedToken && savedUser) {
-      try {
-        setToken(savedToken);
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        localStorage.removeItem('trinetra_token');
-        localStorage.removeItem('trinetra_user');
+      if (savedToken && savedUser) {
+        try {
+          setToken(savedToken);
+          setUser(JSON.parse(savedUser));
+        } catch (e) {
+          localStorage.removeItem('trinetra_token');
+          localStorage.removeItem('trinetra_user');
+        }
+      } else if (isSupabaseConfigured) {
+        try {
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.user) {
+            const mapped = mapSupabaseUserToTrinetraUser(data.session.user);
+            setToken(data.session.access_token);
+            setUser(mapped);
+            localStorage.setItem('trinetra_token', data.session.access_token);
+            localStorage.setItem('trinetra_user', JSON.stringify(mapped));
+          }
+        } catch (e) {
+          console.warn('Supabase session lookup error:', e);
+        }
       }
-    }
-    setIsLoading(false);
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -48,10 +65,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem('trinetra_token');
     localStorage.removeItem('trinetra_user');
+    if (isSupabaseConfigured) {
+      supabase.auth.signOut().catch(() => {});
+    }
   };
 
   const hasRole = (allowedRoles: Role[]): boolean => {
     if (!user) return false;
+    if (user.role === 'ADMIN') return true;
     return allowedRoles.includes(user.role);
   };
 

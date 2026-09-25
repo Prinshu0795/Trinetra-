@@ -21,8 +21,8 @@ router.post(
   submitReport
 );
 
-// Authority triage
-router.get('/', authenticate, requireRole(['AUTHORITY', 'RESPONDER']), listReports);
+// Public / Citizen reports feed (with optional user context)
+router.get('/', optionalAuthenticate, listReports);
 router.get('/:id', optionalAuthenticate, getReportById);
 router.patch(
   '/:id/triage',

@@ -89,8 +89,7 @@ export const AlertStudioPage: React.FC = () => {
     try {
       setBroadcasting(true);
       const expiresAt = new Date(Date.now() + expiryHours * 3600 * 1000).toISOString();
-
-      const res = await api.post('/alerts/broadcast', {
+      const alertPayload = {
         title,
         type,
         severity,
@@ -102,23 +101,41 @@ export const AlertStudioPage: React.FC = () => {
         detailedMessage,
         actionInstructions,
         expiresAt,
-      });
+      };
 
-      if (res.data.success) {
-        setBroadcastSuccess(res.data.data);
+      let successData: any = null;
+      try {
+        const res = await api.post('/alerts/broadcast', alertPayload);
+        if (res.data?.success) {
+          successData = res.data.data;
+        }
+      } catch (backendErr) {
+        // Fallback directly to Supabase alerts table
+        const { isSupabaseConfigured, supabaseBroadcastAlert } = await import('../../lib/supabase');
+        if (isSupabaseConfigured) {
+          successData = await supabaseBroadcastAlert(alertPayload);
+        } else {
+          throw backendErr;
+        }
+      }
+
+      if (successData) {
+        setBroadcastSuccess(successData);
+      } else {
+        throw new Error('Broadcast dispatch failed');
       }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.error?.message || 'Broadcast dispatch failed');
+      setErrorMsg(err.message || err.response?.data?.error?.message || 'Broadcast dispatch failed');
     } finally {
       setBroadcasting(false);
     }
   };
 
   return (
-    <div className="flex bg-canvas min-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row bg-canvas min-h-[calc(100vh-4rem)]">
       <AuthoritySidebar />
 
-      <main className="flex-1 p-6 space-y-6 overflow-x-hidden">
+      <main className="flex-1 p-3.5 sm:p-6 space-y-6 overflow-x-hidden">
         {/* Header */}
         <div className="border-b border-hairline pb-4">
           <div className="flex items-center space-x-2">
@@ -322,7 +339,7 @@ export const AlertStudioPage: React.FC = () => {
           <div className="lg:col-span-5 bg-white border border-hairline rounded-xl p-6 shadow-card space-y-4">
             <h3 className="text-base font-semibold text-ink border-b border-hairline pb-2 flex items-center justify-between">
               <span>Citizen Handset Preview</span>
-              <span className="text-[10px] font-mono text-ink-subtle uppercase">Simulated Push</span>
+              <span className="text-[10px] font-mono text-ink-subtle uppercase">CAP EAS Notification</span>
             </h3>
 
             <div className="bg-canvas border border-hairline rounded-2xl p-4 shadow-inner space-y-3 max-w-sm mx-auto">
