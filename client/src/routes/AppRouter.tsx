@@ -1,6 +1,5 @@
-// client/src/routes/AppRouter.tsx
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Navbar } from '../components/layout/Navbar';
 import { ProtectedRoute } from '../components/layout/ProtectedRoute';
 
@@ -43,6 +42,9 @@ const RoleBasedDashboardRedirect: React.FC = () => {
 };
 
 export const AppRouter: React.FC = () => {
+  const location = useLocation();
+  const isHomePage = location.pathname === '/' || location.pathname === '/home';
+
   return (
     <div className="min-h-screen bg-canvas text-ink-body flex flex-col font-sans">
       <Navbar />
@@ -53,7 +55,7 @@ export const AppRouter: React.FC = () => {
           <Route path="/home" element={<HomePage />} />
           <Route path="/dashboard" element={<RoleBasedDashboardRedirect />} />
           <Route path="/admin" element={<Navigate to="/authority/dashboard" replace />} />
-          <Route path="/map" element={<DisasterMapPage />} />
+          <Route path="/map" element={<GeoIntelligencePage />} />
           <Route path="/alerts" element={<AlertsPage />} />
           <Route path="/geo-intelligence" element={<GeoIntelligencePage />} />
           <Route path="/report" element={<ReportIncidentPage />} />
@@ -128,7 +130,7 @@ export const AppRouter: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
-      <FloatingSosButton />
+      {isHomePage && <FloatingSosButton />}
       <MobileBottomNav />
     </div>
   );

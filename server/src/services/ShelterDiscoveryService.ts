@@ -155,7 +155,7 @@ export class ShelterDiscoveryService {
               'User-Agent': 'TrinetraDisasterManagement/1.0',
             },
             body: `data=${encodeURIComponent(query)}`,
-            signal: AbortSignal.timeout(7000), // 7s timeout
+            signal: AbortSignal.timeout(3000), // 3s timeout
           });
 
           if (!response.ok) {

@@ -19,21 +19,39 @@ import {
   CheckCircle2,
   Clock,
   Navigation,
+  AlertOctagon,
+  Search,
 } from 'lucide-react';
 import api from '../../lib/api';
-import { Disaster, SafeZone, Alert, IncidentReport, RiskAssessment } from '../../types';
+import { Disaster, SafeZone, Alert, IncidentReport, RiskAssessment, EmergencyResource } from '../../types';
 import { Badge } from '../../components/common/Badge';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { DisasterLeafletMap } from '../../components/map/DisasterLeafletMap';
+import { EmergencySosModal } from '../../components/relay/EmergencySosModal';
+
+const HOME_REGION_PRESETS = [
+  { id: 'all', name: '🇮🇳 Whole India', center: [22.3511, 78.6677] as [number, number], zoom: 5 },
+  { id: 'north', name: '🏔️ North', center: [29.8, 78.2] as [number, number], zoom: 7 },
+  { id: 'east', name: '🌊 East & NE', center: [24.5, 88.5] as [number, number], zoom: 6 },
+  { id: 'west', name: '🏖️ West', center: [20.5, 72.8] as [number, number], zoom: 7 },
+  { id: 'south', name: '🌴 South', center: [12.5, 77.5] as [number, number], zoom: 7 },
+];
 
 export const HomePage: React.FC = () => {
-  const { latitude, longitude } = useGeolocation();
+  const { latitude, longitude, refetchLocation, loading: geoLoading } = useGeolocation();
   const [disasters, setDisasters] = useState<Disaster[]>([]);
   const [safeZones, setSafeZones] = useState<SafeZone[]>([]);
+  const [resources, setResources] = useState<EmergencyResource[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [reports, setReports] = useState<IncidentReport[]>([]);
   const [riskData, setRiskData] = useState<RiskAssessment | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [sosModalOpen, setSosModalOpen] = useState<boolean>(false);
+
+  const [activeRegion, setActiveRegion] = useState<string>('all');
+  const [mapCenter, setMapCenter] = useState<[number, number]>([22.3511, 78.6677]);
+  const [mapZoom, setMapZoom] = useState<number>(5);
+  const [disasterTypeFilter, setDisasterTypeFilter] = useState<string>('ALL');
 
   useEffect(() => {
     const fetchHomeTelemetry = async () => {
@@ -41,27 +59,29 @@ export const HomePage: React.FC = () => {
         setLoading(true);
         const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}` : '';
 
-        const [disastersRes, safeZonesRes, alertsRes, reportsRes] = await Promise.all([
+        const [disastersRes, safeZonesRes, resourcesRes, alertsRes, reportsRes] = await Promise.all([
           api.get(`/disasters${latQuery}`),
-          api.get(`/safe-zones${latQuery}`),
+          api.get('/safe-zones'),
+          api.get('/resources'),
           api.get('/alerts?status=ACTIVE'),
           api.get('/reports?status=ALL'),
         ]);
 
         let loadedDisasters: Disaster[] = [];
-        if (disastersRes.data.success) {
+        if (disastersRes.data?.success) {
           loadedDisasters = disastersRes.data.data;
           setDisasters(loadedDisasters);
         }
-        if (safeZonesRes.data.success) setSafeZones(safeZonesRes.data.data);
-        if (alertsRes.data.success) setAlerts(alertsRes.data.data);
-        if (reportsRes.data.success) setReports(reportsRes.data.data);
+        if (safeZonesRes.data?.success) setSafeZones(safeZonesRes.data.data);
+        if (resourcesRes.data?.success) setResources(resourcesRes.data.data);
+        if (alertsRes.data?.success) setAlerts(alertsRes.data.data);
+        if (reportsRes.data?.success) setReports(reportsRes.data.data);
 
         // Dynamic risk query based on nearest disaster sector or coordinates
         const primarySector = loadedDisasters[0]?.locationName || 'Guwahati';
         try {
           const riskRes = await api.get(`/risk/${encodeURIComponent(primarySector)}${latQuery}`);
-          if (riskRes.data.success) setRiskData(riskRes.data.data);
+          if (riskRes.data?.success) setRiskData(riskRes.data.data);
         } catch (riskErr) {
           console.warn('Risk query error:', riskErr);
         }
@@ -125,6 +145,16 @@ export const HomePage: React.FC = () => {
 
         {/* Primary Action Button Cluster */}
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => setSosModalOpen(true)}
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-[#9E2A2B] hover:bg-[#852223] active:bg-[#6D1D1E] text-white text-xs sm:text-sm font-semibold shadow-sm transition whitespace-nowrap"
+            title="Trigger Emergency Distress SOS"
+          >
+            <AlertOctagon className="w-4 h-4 text-white" />
+            <span>Emergency SOS</span>
+          </button>
+
           <Link
             to="/report"
             className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-coral hover:bg-coral-hover active:bg-coral-active text-white text-xs sm:text-sm font-semibold shadow-sm transition whitespace-nowrap"
@@ -139,6 +169,15 @@ export const HomePage: React.FC = () => {
           >
             <Layers className="w-4 h-4 text-coral" />
             <span>Live GIS Map</span>
+          </Link>
+
+          <Link
+            to="/geo-intelligence"
+            className="inline-flex items-center space-x-2 px-4 sm:px-5 py-2.5 rounded-xl bg-white hover:bg-canvas text-ink border border-hairline text-xs sm:text-sm font-semibold shadow-card transition whitespace-nowrap"
+            title="Search Indian cities & locations for localized risk assessment"
+          >
+            <Search className="w-4 h-4 text-coral" />
+            <span>Geo Search</span>
           </Link>
 
           <Link
@@ -205,6 +244,14 @@ export const HomePage: React.FC = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSosModalOpen(true)}
+            className="inline-flex items-center justify-center space-x-2 px-5 py-3 rounded-lg bg-[#9E2A2B] hover:bg-[#852223] active:bg-[#6D1D1E] text-white text-xs font-semibold uppercase tracking-wider shadow-sm transition"
+          >
+            <AlertOctagon className="w-4 h-4 text-white" />
+            <span>Transmit SOS</span>
+          </button>
           <Link
             to="/relay"
             className="inline-flex items-center justify-center space-x-2 px-6 py-3 rounded-lg bg-coral hover:bg-coral-hover text-white text-xs font-semibold uppercase tracking-wider shadow-sm transition"
@@ -235,6 +282,13 @@ export const HomePage: React.FC = () => {
               {latitude ? `${latitude.toFixed(4)}°N, ${longitude?.toFixed(4)}°E` : 'Kamrup Metropolitan Sector'}
             </span>
             <Link
+              to="/geo-intelligence"
+              className="text-xs font-semibold text-ink-body hover:text-coral flex items-center gap-1 whitespace-nowrap"
+            >
+              <Search className="w-3.5 h-3.5 text-coral" />
+              <span>Geo Search</span>
+            </Link>
+            <Link
               to="/map"
               className="text-xs font-semibold text-coral hover:underline flex items-center gap-1 whitespace-nowrap"
             >
@@ -244,37 +298,114 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Embedded Leaflet Map */}
-        <div className="rounded-xl overflow-hidden border border-hairline">
+        {/* Regional Quick Navigation & Type Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
+          {/* Region Tabs */}
+          <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+            {HOME_REGION_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setActiveRegion(preset.id);
+                  setMapCenter(preset.center);
+                  setMapZoom(preset.zoom);
+                }}
+                className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition border ${
+                  activeRegion === preset.id
+                    ? 'bg-ink text-white border-ink font-semibold shadow-xs'
+                    : 'bg-white hover:bg-canvas text-ink border-hairline shadow-card'
+                }`}
+              >
+                {preset.name}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveRegion('gps');
+                refetchLocation();
+                if (latitude && longitude) {
+                  setMapCenter([latitude, longitude]);
+                  setMapZoom(11);
+                }
+              }}
+              disabled={geoLoading}
+              className={`flex items-center space-x-1 px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition border ${
+                activeRegion === 'gps'
+                  ? 'bg-coral text-white border-coral font-semibold shadow-xs'
+                  : 'bg-white hover:bg-canvas text-ink border-hairline shadow-card'
+              }`}
+            >
+              <Navigation className={`w-3.5 h-3.5 ${geoLoading ? 'animate-spin' : ''}`} />
+              <span>{geoLoading ? 'Acquiring...' : 'My GPS'}</span>
+            </button>
+          </div>
+
+          {/* Disaster Type Filter Pills */}
+          <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar text-[11px]">
+            {['ALL', 'FLOOD', 'CYCLONE', 'LANDSLIDE', 'URBAN_EMERGENCY'].map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setDisasterTypeFilter(t)}
+                className={`px-2.5 py-1 rounded-lg border font-mono transition whitespace-nowrap ${
+                  disasterTypeFilter === t
+                    ? 'bg-coral-subtle text-coral border-coral font-bold'
+                    : 'bg-canvas text-ink-muted border-hairline hover:text-ink'
+                }`}
+              >
+                {t === 'ALL' ? `All (${disasters.length})` : t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Embedded Leaflet Map with Pan-India Coverage */}
+        <div className="rounded-xl overflow-hidden border border-hairline shadow-card">
           <DisasterLeafletMap
             disasters={disasters}
             safeZones={safeZones}
+            resources={resources}
             reports={reports}
             userLat={latitude}
             userLng={longitude}
-            height="520px"
-            zoom={12}
+            height="540px"
+            center={mapCenter}
+            zoom={mapZoom}
+            fitPanIndia={activeRegion === 'all'}
+            typeFilter={disasterTypeFilter}
+            onResetPanIndia={() => {
+              setActiveRegion('all');
+              setMapCenter([22.3511, 78.6677]);
+              setMapZoom(5);
+            }}
           />
         </div>
 
         {/* Map Legend Footer */}
         <div className="flex flex-wrap items-center justify-between text-xs text-ink-muted pt-1 gap-3">
-          <div className="flex flex-wrap items-center gap-5">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <span className="flex items-center gap-1.5 font-medium text-ink-body">
               <span className="w-2.5 h-2.5 rounded-full bg-[#C64545]" />
-              Flood Inundation Buffer ({activeDisaster?.radiusKm || 25} km)
+              Active Hazards ({disasters.length})
             </span>
             <span className="flex items-center gap-1.5 font-medium text-ink-body">
               <span className="w-2.5 h-2.5 rounded-full bg-[#22C55E]" />
-              High-Ground Safe Havens ({safeZones.length})
+              Safe Shelters ({safeZones.length})
+            </span>
+            <span className="flex items-center gap-1.5 font-medium text-ink-body">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6]" />
+              Medical & Relief Bases ({resources.length})
             </span>
             <span className="flex items-center gap-1.5 font-medium text-ink-body">
               <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]" />
-              Verified Citizen Eyewitness Pins ({reports.length})
+              Citizen Reports ({reports.length})
             </span>
           </div>
           <span className="text-[11px] font-mono text-ink-subtle">
-            Projection: WGS-84 • CartoDB Voyager Light Tiles
+            Pan-India Surveillance • WGS-84 Coordinate Standard
           </span>
         </div>
       </section>
@@ -583,6 +714,9 @@ export const HomePage: React.FC = () => {
           </a>
         </div>
       </section>
+
+      {/* Emergency Distress SOS Modal (Available strictly on Home Page) */}
+      <EmergencySosModal isOpen={sosModalOpen} onClose={() => setSosModalOpen(false)} />
     </div>
   );
 };

@@ -28,24 +28,37 @@ export const IncidentTriagePage: React.FC = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/reports?status=${statusFilter}`);
-      if (res.data?.success) {
-        setReports(res.data.data);
-        return;
-      }
-    } catch (err) {
+      let loadedReports: any[] = [];
+
+      // 1. Fetch live incident reports directly from Supabase
       if (isSupabaseConfigured) {
         try {
           const supaReports = await supabaseGetIncidentReports();
-          const filtered = statusFilter === 'ALL'
-            ? supaReports
-            : supaReports.filter((r: any) => r.status === statusFilter);
-          setReports(filtered as any);
-          return;
+          if (supaReports?.length) {
+            loadedReports = supaReports;
+          }
         } catch (supaErr) {
-          console.error('Supabase fetch reports failed:', supaErr);
+          console.warn('Direct Supabase incident reports fetch warning:', supaErr);
         }
       }
+
+      // 2. Fallback to Express backend if needed
+      if (!loadedReports.length) {
+        try {
+          const res = await api.get(`/reports?status=${statusFilter}`);
+          if (res.data?.success) {
+            loadedReports = res.data.data;
+          }
+        } catch (backendErr) {
+          console.error('All report endpoints unreachable:', backendErr);
+        }
+      }
+
+      const filtered = statusFilter === 'ALL'
+        ? loadedReports
+        : loadedReports.filter((r: any) => r.status === statusFilter);
+      setReports(filtered as any);
+    } catch (err) {
       console.error('Failed to load incident reports:', err);
     } finally {
       setLoading(false);
@@ -54,6 +67,18 @@ export const IncidentTriagePage: React.FC = () => {
 
   useEffect(() => {
     fetchReports();
+
+    // Live Realtime Subscription for incident reports
+    const reportsChannel = supabase
+      .channel('incident-triage-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => {
+        fetchReports();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(reportsChannel);
+    };
   }, [statusFilter]);
 
   const handleTriageAction = async (newStatus: ReportStatus) => {

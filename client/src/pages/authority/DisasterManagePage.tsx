@@ -16,6 +16,13 @@ import api from '../../lib/api';
 import { Disaster, DisasterType, SeverityLevel, DisasterStatus } from '../../types';
 import { Badge } from '../../components/common/Badge';
 import { AuthoritySidebar } from '../../components/layout/AuthoritySidebar';
+import {
+  supabase,
+  isSupabaseConfigured,
+  supabaseGetDisasters,
+  supabaseCreateDisaster,
+} from '../../lib/supabase';
+import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 
 export const DisasterManagePage: React.FC = () => {
   const [disasters, setDisasters] = useState<Disaster[]>([]);
@@ -23,6 +30,7 @@ export const DisasterManagePage: React.FC = () => {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  useBodyScrollLock(showCreateModal);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -39,10 +47,33 @@ export const DisasterManagePage: React.FC = () => {
   const fetchDisasters = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/disasters');
-      if (res.data.success) {
-        setDisasters(res.data.data);
+      let loadedDisasters: Disaster[] = [];
+
+      // 1. Fetch live disasters directly from Supabase
+      if (isSupabaseConfigured) {
+        try {
+          const supaD = await supabaseGetDisasters();
+          if (supaD?.length) {
+            loadedDisasters = supaD as any;
+          }
+        } catch (supaErr) {
+          console.warn('Direct Supabase disasters notice:', supaErr);
+        }
       }
+
+      // 2. Fallback to Express backend if needed
+      if (!loadedDisasters.length) {
+        try {
+          const res = await api.get('/disasters');
+          if (res.data.success) {
+            loadedDisasters = res.data.data;
+          }
+        } catch (backendErr) {
+          console.error('Backend disaster endpoints unreachable:', backendErr);
+        }
+      }
+
+      setDisasters(loadedDisasters);
     } catch (err) {
       console.error('Failed to load disasters:', err);
     } finally {
@@ -52,6 +83,18 @@ export const DisasterManagePage: React.FC = () => {
 
   useEffect(() => {
     fetchDisasters();
+
+    // Live Realtime Subscription for Disasters
+    const disastersChannel = supabase
+      .channel('disaster-manage-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'disasters' }, () => {
+        fetchDisasters();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(disastersChannel);
+    };
   }, []);
 
   const handleSyncLive = async () => {
@@ -76,7 +119,7 @@ export const DisasterManagePage: React.FC = () => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      const res = await api.post('/disasters', {
+      const payload = {
         title,
         type,
         severity,
@@ -86,16 +129,29 @@ export const DisasterManagePage: React.FC = () => {
         radiusKm,
         description,
         affectedPopulationEst,
-      });
+      };
 
-      if (res.data.success) {
-        setShowCreateModal(false);
-        // Reset form
-        setTitle('');
-        setLocationName('');
-        setDescription('');
-        fetchDisasters();
+      // 1. Create in Supabase directly
+      if (isSupabaseConfigured) {
+        try {
+          await supabaseCreateDisaster(payload);
+        } catch (supaErr) {
+          console.warn('Direct Supabase disaster create fallback:', supaErr);
+        }
       }
+
+      // 2. Also sync to local backend
+      try {
+        await api.post('/disasters', payload);
+      } catch (backendErr) {
+        console.warn('Backend disaster create notice:', backendErr);
+      }
+
+      setShowCreateModal(false);
+      setTitle('');
+      setLocationName('');
+      setDescription('');
+      fetchDisasters();
     } catch (err) {
       console.error('Failed to create disaster:', err);
     } finally {
@@ -264,8 +320,14 @@ export const DisasterManagePage: React.FC = () => {
 
         {/* Modal: Declare New Disaster */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white border border-hairline rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-elevated">
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center p-3.5 sm:p-4 bg-ink/50 backdrop-blur-sm animate-fade-in overscroll-contain"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <div
+              className="bg-white border border-hairline rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-elevated max-h-[90vh] overflow-y-auto overscroll-contain my-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between border-b border-hairline pb-3">
                 <div>
                   <h2 className="text-lg font-serif font-normal text-ink">Declare Emergency Disaster</h2>

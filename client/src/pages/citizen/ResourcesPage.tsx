@@ -10,22 +10,46 @@ import api from '../../lib/api';
 import { EmergencyResource } from '../../types';
 import { Badge } from '../../components/common/Badge';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { supabase, isSupabaseConfigured, supabaseGetResources } from '../../lib/supabase';
 
 export const ResourcesPage: React.FC = () => {
   const { latitude, longitude } = useGeolocation();
   const [resources, setResources] = useState<EmergencyResource[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [scope, setScope] = useState<'ALL_INDIA' | 'NEARBY'>('ALL_INDIA');
 
   useEffect(() => {
     const fetchResources = async () => {
       try {
         setLoading(true);
-        const latQuery = latitude ? `?lat=${latitude}&lng=${longitude}&live=true` : '';
-        const res = await api.get(`/resources${latQuery}`);
-        if (res.data.success) {
-          setResources(res.data.data);
+        let loadedResources: EmergencyResource[] = [];
+
+        // 1. Fetch live emergency resources directly from Supabase
+        if (isSupabaseConfigured) {
+          try {
+            const supaRes = await supabaseGetResources();
+            if (supaRes?.length) {
+              loadedResources = supaRes as any;
+            }
+          } catch (supaErr) {
+            console.warn('Direct Supabase resources notice:', supaErr);
+          }
         }
+
+        // 2. Fallback to Express backend if needed
+        if (!loadedResources.length) {
+          const endpoint =
+            scope === 'NEARBY' && latitude && longitude
+              ? `/resources?lat=${latitude}&lng=${longitude}&live=true`
+              : '/resources';
+          const res = await api.get(endpoint);
+          if (res.data.success) {
+            loadedResources = res.data.data;
+          }
+        }
+
+        setResources(loadedResources);
       } catch (err) {
         console.error('Failed to load emergency resources:', err);
       } finally {
@@ -34,7 +58,19 @@ export const ResourcesPage: React.FC = () => {
     };
 
     fetchResources();
-  }, [latitude, longitude]);
+
+    // Live Realtime Subscription for emergency resources
+    const resChannel = supabase
+      .channel('resources-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_resources' }, () => {
+        supabaseGetResources().then((r) => setResources(r as any)).catch(() => {});
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(resChannel);
+    };
+  }, [latitude, longitude, scope]);
 
   const categories = [
     { key: 'ALL', label: 'All Resources' },
@@ -50,14 +86,41 @@ export const ResourcesPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink flex items-center gap-2">
-          <Building2 className="w-5 h-5 text-coral shrink-0" />
-          <span>Emergency Facilities & Critical Resources</span>
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-muted mt-1">
-          Direct directory of operational Level-1 trauma centers, NDRF boat rescue bases, and de-watering pump squads.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-serif font-normal text-ink flex items-center gap-2">
+            <Building2 className="w-5 h-5 text-coral shrink-0" />
+            <span>Emergency Facilities & Critical Resources</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-ink-muted mt-1">
+            Direct directory of operational Level-1 trauma centers, NDRF boat rescue bases, and de-watering pump squads across all Indian states.
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setScope('ALL_INDIA')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
+              scope === 'ALL_INDIA'
+                ? 'bg-coral text-white border-coral shadow-sm'
+                : 'bg-white hover:bg-canvas text-ink border-hairline shadow-card'
+            }`}
+          >
+            🇮🇳 Whole India
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('NEARBY')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition ${
+              scope === 'NEARBY'
+                ? 'bg-coral text-white border-coral shadow-sm'
+                : 'bg-white hover:bg-canvas text-ink border-hairline shadow-card'
+            }`}
+          >
+            📍 Near My GPS
+          </button>
+        </div>
       </div>
 
       {/* Category Tabs (Horizontal scrollable on mobile) */}

@@ -23,6 +23,14 @@ import { useAuth } from '../../context/AuthContext';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import { IncidentReport, SafeZone, Alert, RiskAssessment, Disaster } from '../../types';
 import { Badge } from '../../components/common/Badge';
+import {
+  supabase,
+  isSupabaseConfigured,
+  supabaseGetDisasters,
+  supabaseGetSafeZones,
+  supabaseGetAlerts,
+  supabaseGetIncidentReports,
+} from '../../lib/supabase';
 
 export const CitizenPortalPage: React.FC = () => {
   const { user } = useAuth();
@@ -42,41 +50,62 @@ export const CitizenPortalPage: React.FC = () => {
         setLoading(true);
         const latQuery = latitude && longitude ? `?lat=${latitude}&lng=${longitude}` : '';
 
-        // 1. Fetch live operational telemetry in parallel
-        const [disastersRes, safeZonesRes, alertsRes, reportsRes] = await Promise.all([
-          api.get(`/disasters${latQuery}`),
-          api.get(`/safe-zones${latQuery}`),
-          api.get('/alerts?status=ACTIVE'),
-          api.get('/reports?status=ALL'),
-        ]);
+        // 1. Fetch live operational telemetry from Supabase directly
+        if (isSupabaseConfigured) {
+          try {
+            const [supaDisasters, supaSafeZones, supaAlerts, supaReports] = await Promise.all([
+              supabaseGetDisasters().catch(() => []),
+              supabaseGetSafeZones().catch(() => []),
+              supabaseGetAlerts().catch(() => []),
+              supabaseGetIncidentReports().catch(() => []),
+            ]);
 
-        let loadedDisasters: Disaster[] = [];
-        if (disastersRes.data.success) {
-          loadedDisasters = disastersRes.data.data;
-          setActiveDisasters(loadedDisasters.filter((d) => d.status === 'ACTIVE'));
+            if (supaDisasters.length) {
+              setActiveDisasters(supaDisasters.filter((d) => d.status === 'ACTIVE') as any);
+            }
+            if (supaSafeZones.length) {
+              setSafeZones(supaSafeZones as any);
+            }
+            if (supaAlerts.length) {
+              setAlerts(supaAlerts as any);
+            }
+            if (supaReports.length) {
+              setAllReports(supaReports as any);
+            }
+          } catch (supaErr) {
+            console.warn('Direct Supabase telemetry fetch warning:', supaErr);
+          }
         }
 
-        if (safeZonesRes.data.success) {
-          setSafeZones(safeZonesRes.data.data);
-        }
-
-        if (alertsRes.data.success) {
-          setAlerts(alertsRes.data.data);
-        }
-
-        if (reportsRes.data.success) {
-          setAllReports(reportsRes.data.data);
-        }
-
-        // 2. Query dynamic risk engine based on active disaster sector or coordinates
-        const primaryLocation = loadedDisasters[0]?.locationName || 'Guwahati';
+        // 2. Query secondary/enrichment services (Risk Engine & fallback endpoints)
         try {
-          const riskRes = await api.get(`/risk/${encodeURIComponent(primaryLocation)}${latQuery}`);
-          if (riskRes.data.success) {
+          const [disastersRes, safeZonesRes, alertsRes, reportsRes] = await Promise.all([
+            api.get(`/disasters${latQuery}`).catch(() => null),
+            api.get(`/safe-zones${latQuery}`).catch(() => null),
+            api.get('/alerts?status=ACTIVE').catch(() => null),
+            api.get('/reports?status=ALL').catch(() => null),
+          ]);
+
+          if (disastersRes?.data?.success && disastersRes.data.data?.length) {
+            setActiveDisasters(disastersRes.data.data.filter((d: any) => d.status === 'ACTIVE'));
+          }
+          if (safeZonesRes?.data?.success && safeZonesRes.data.data?.length) {
+            setSafeZones((prev) => (prev.length ? prev : safeZonesRes.data.data));
+          }
+          if (alertsRes?.data?.success && alertsRes.data.data?.length) {
+            setAlerts((prev) => (prev.length ? prev : alertsRes.data.data));
+          }
+          if (reportsRes?.data?.success && reportsRes.data.data?.length) {
+            setAllReports((prev) => (prev.length ? prev : reportsRes.data.data));
+          }
+
+          const primaryLocation = 'Guwahati';
+          const riskRes = await api.get(`/risk/${encodeURIComponent(primaryLocation)}${latQuery}`).catch(() => null);
+          if (riskRes?.data?.success) {
             setRiskData(riskRes.data.data);
           }
-        } catch (riskErr) {
-          console.warn('Risk evaluation returned fallback:', riskErr);
+        } catch (enrichErr) {
+          console.warn('Enrichment telemetry notice:', enrichErr);
         }
       } catch (err) {
         console.error('Failed to load citizen portal telemetry:', err);
@@ -86,6 +115,24 @@ export const CitizenPortalPage: React.FC = () => {
     };
 
     fetchPortalData();
+
+    // 3. Live Supabase Realtime Subscriptions
+    const liveChannel = supabase
+      .channel('citizen-portal-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
+        supabaseGetAlerts().then((data) => setAlerts(data as any)).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'disasters' }, () => {
+        supabaseGetDisasters().then((data) => setActiveDisasters(data.filter((d) => d.status === 'ACTIVE') as any)).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'incident_reports' }, () => {
+        supabaseGetIncidentReports().then((data) => setAllReports(data as any)).catch(() => {});
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(liveChannel);
+    };
   }, [user, latitude, longitude]);
 
   // Authenticate user-submitted reports matching user id, full name, email, or phone

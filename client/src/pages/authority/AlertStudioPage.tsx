@@ -14,6 +14,7 @@ import api from '../../lib/api';
 import { AlertType, SeverityLevel } from '../../types';
 import { AuthoritySidebar } from '../../components/layout/AuthoritySidebar';
 import { Badge } from '../../components/common/Badge';
+import { isSupabaseConfigured, supabaseBroadcastAlert } from '../../lib/supabase';
 
 const SOP_TEMPLATES = [
   {
@@ -104,19 +105,27 @@ export const AlertStudioPage: React.FC = () => {
       };
 
       let successData: any = null;
+
+      // 1. Broadcast directly to live Supabase
+      if (isSupabaseConfigured) {
+        try {
+          const supaRes = await supabaseBroadcastAlert(alertPayload);
+          if (supaRes) {
+            successData = supaRes;
+          }
+        } catch (supaErr) {
+          console.warn('Direct Supabase alert broadcast notice:', supaErr);
+        }
+      }
+
+      // 2. Also dispatch via Express backend SSE broadcaster
       try {
         const res = await api.post('/alerts/broadcast', alertPayload);
-        if (res.data?.success) {
+        if (res.data?.success && !successData) {
           successData = res.data.data;
         }
       } catch (backendErr) {
-        // Fallback directly to Supabase alerts table
-        const { isSupabaseConfigured, supabaseBroadcastAlert } = await import('../../lib/supabase');
-        if (isSupabaseConfigured) {
-          successData = await supabaseBroadcastAlert(alertPayload);
-        } else {
-          throw backendErr;
-        }
+        console.warn('Backend broadcast notice:', backendErr);
       }
 
       if (successData) {

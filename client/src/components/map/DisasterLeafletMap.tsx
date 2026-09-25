@@ -52,12 +52,30 @@ const userIcon = L.divIcon({
   iconAnchor: [10, 10],
 });
 
-// Component to dynamically recenter map
-function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
+// India Geographic Bounding Box (Kashmir to Kanyakumari, Gujarat to Arunachal)
+const INDIA_BOUNDS: [[number, number], [number, number]] = [
+  [8.0, 68.0],
+  [36.5, 97.4],
+];
+
+// Component to dynamically recenter map or fit whole India
+function ChangeView({
+  center,
+  zoom,
+  fitPanIndia,
+}: {
+  center: [number, number];
+  zoom: number;
+  fitPanIndia?: boolean;
+}) {
   const map = useMap();
   useEffect(() => {
-    map.setView(center, zoom);
-  }, [center, zoom, map]);
+    if (fitPanIndia) {
+      map.fitBounds(INDIA_BOUNDS, { padding: [16, 16], maxZoom: 6 });
+    } else {
+      map.setView(center, zoom);
+    }
+  }, [center, zoom, fitPanIndia, map]);
   return null;
 }
 
@@ -72,6 +90,14 @@ interface DisasterLeafletMapProps {
   zoom?: number;
   center?: [number, number];
   initialCenter?: [number, number];
+  fitPanIndia?: boolean;
+  typeFilter?: string;
+  searchedLocation?: {
+    name: string;
+    address?: string;
+    lat: number;
+    lng: number;
+  } | null;
   onReportClick?: (report: IncidentReport) => void;
   onResetPanIndia?: () => void;
 }
@@ -87,6 +113,9 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
   zoom = 5,
   center: controlledCenter,
   initialCenter = [22.3511, 78.6677], // Geographic center of India
+  fitPanIndia = false,
+  typeFilter = 'ALL',
+  searchedLocation,
   onReportClick,
   onResetPanIndia,
 }) => {
@@ -95,6 +124,12 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
   const [showResources, setShowResources] = useState(true);
   const [showReports, setShowReports] = useState(true);
   const [layersExpanded, setLayersExpanded] = useState(false);
+
+  // Filter disasters by selected type if specified
+  const filteredDisasters = disasters.filter((d) => {
+    if (!typeFilter || typeFilter === 'ALL') return true;
+    return d.type?.toUpperCase() === typeFilter.toUpperCase();
+  });
 
   const activeCenter: [number, number] = controlledCenter || initialCenter;
   const activeZoom: number = zoom ?? 5;
@@ -193,7 +228,7 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
         scrollWheelZoom={true}
         style={{ width: '100%', height: '100%' }}
       >
-        <ChangeView center={activeCenter} zoom={activeZoom} />
+        <ChangeView center={activeCenter} zoom={activeZoom} fitPanIndia={fitPanIndia} />
 
         {/* Standard OpenStreetMap Cartography */}
         <TileLayer
@@ -203,174 +238,242 @@ export const DisasterLeafletMap: React.FC<DisasterLeafletMapProps> = ({
 
         {/* User Current Geolocation Marker */}
         {userLat && userLng && (
-          <Marker position={[userLat, userLng]} icon={userIcon}>
+          <Marker position={[Number(userLat), Number(userLng)]} icon={userIcon}>
             <Popup className="custom-popup">
               <div className="p-1">
                 <p className="font-semibold text-ink text-xs">Your Current Location</p>
                 <p className="text-[10px] text-ink-muted font-mono mt-0.5">
-                  {userLat.toFixed(4)}°N, {userLng.toFixed(4)}°E
+                  {Number(userLat).toFixed(4)}°N, {Number(userLng).toFixed(4)}°E
                 </p>
               </div>
             </Popup>
           </Marker>
         )}
 
-        {/* 1. Active Disasters and Circular Impact Buffers */}
-        {showDisasters &&
-          disasters.map((d) => (
-            <React.Fragment key={d.id}>
+        {/* Searched Location Marker */}
+        {searchedLocation &&
+          !isNaN(Number(searchedLocation.lat)) &&
+          !isNaN(Number(searchedLocation.lng)) && (
+            <React.Fragment>
               <Circle
-                center={[d.latitude, d.longitude]}
-                radius={d.radiusKm * 1000}
+                center={[Number(searchedLocation.lat), Number(searchedLocation.lng)]}
+                radius={800}
                 pathOptions={{
-                  color: d.severity === 'CRITICAL' ? '#CC785C' : '#D97706',
-                  fillColor: d.severity === 'CRITICAL' ? '#CC785C' : '#D97706',
-                  fillOpacity: 0.12,
-                  weight: 1.5,
-                  dashArray: '4, 4',
+                  color: '#E11D48',
+                  fillColor: '#E11D48',
+                  fillOpacity: 0.15,
+                  weight: 2,
                 }}
               />
               <Marker
-                position={[d.latitude, d.longitude]}
-                icon={createCustomIcon('#C64545', '⚠️')}
+                position={[Number(searchedLocation.lat), Number(searchedLocation.lng)]}
+                icon={createCustomIcon('#E11D48', '🎯')}
               >
-                <Popup className="custom-popup">
-                  <div className="p-2 space-y-1.5 max-w-xs">
-                    <div className="flex items-center justify-between gap-1">
-                      <Badge severity={d.severity} />
-                      <span className="text-[10px] font-mono text-ink-muted uppercase">{d.type}</span>
-                    </div>
-                    <h4 className="font-semibold text-ink text-sm leading-tight">{d.title}</h4>
-                    <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
-                      <span>📍</span> {d.locationName}
+                <Popup className="custom-popup" autoPan>
+                  <div className="p-2 space-y-1 max-w-xs">
+                    <span className="text-[10px] font-mono uppercase font-bold text-coral bg-coral-subtle px-1.5 py-0.5 rounded">
+                      Searched Location
+                    </span>
+                    <h4 className="font-bold text-ink text-sm leading-tight">
+                      {searchedLocation.name}
+                    </h4>
+                    {searchedLocation.address && (
+                      <p className="text-xs text-ink-muted leading-snug">
+                        {searchedLocation.address}
+                      </p>
+                    )}
+                    <p className="text-[11px] font-mono text-ink-subtle pt-1 border-t border-hairline">
+                      {Number(searchedLocation.lat).toFixed(4)}°N, {Number(searchedLocation.lng).toFixed(4)}°E
                     </p>
-                    <p className="text-xs text-ink-body line-clamp-3">{d.description}</p>
-                    <div className="text-[11px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
-                      <span><strong>Radius:</strong> {d.radiusKm} km</span>
-                      <span><strong>Affected:</strong> ~{d.affectedPopulationEst.toLocaleString()}</span>
-                    </div>
                   </div>
                 </Popup>
               </Marker>
             </React.Fragment>
-          ))}
+          )}
+
+        {/* 1. Active Disasters and Circular Impact Buffers */}
+        {showDisasters &&
+          filteredDisasters
+            .filter((d) => !isNaN(Number(d.latitude)) && !isNaN(Number(d.longitude)))
+            .map((d) => {
+              const lat = Number(d.latitude);
+              const lng = Number(d.longitude);
+              const rad = Number(d.radiusKm || 15) * 1000;
+              return (
+                <React.Fragment key={d.id}>
+                  <Circle
+                    center={[lat, lng]}
+                    radius={rad}
+                    pathOptions={{
+                      color: d.severity === 'CRITICAL' ? '#CC785C' : '#D97706',
+                      fillColor: d.severity === 'CRITICAL' ? '#CC785C' : '#D97706',
+                      fillOpacity: 0.12,
+                      weight: 1.5,
+                      dashArray: '4, 4',
+                    }}
+                  />
+                  <Marker position={[lat, lng]} icon={createCustomIcon('#C64545', '⚠️')}>
+                    <Popup className="custom-popup">
+                      <div className="p-2 space-y-1.5 max-w-xs">
+                        <div className="flex items-center justify-between gap-1">
+                          <Badge severity={d.severity} />
+                          <span className="text-[10px] font-mono text-ink-muted uppercase">{d.type}</span>
+                        </div>
+                        <h4 className="font-semibold text-ink text-sm leading-tight">{d.title}</h4>
+                        <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                          <span>📍</span> {d.locationName}
+                        </p>
+                        <p className="text-xs text-ink-body line-clamp-3">{d.description}</p>
+                        <div className="text-[11px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
+                          <span>
+                            <strong>Radius:</strong> {d.radiusKm} km
+                          </span>
+                          <span>
+                            <strong>Affected:</strong> ~{(d.affectedPopulationEst || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </Popup>
+                  </Marker>
+                </React.Fragment>
+              );
+            })}
 
         {/* 2. Safe Zones */}
         {showSafeZones &&
-          safeZones.map((sz) => (
-            <Marker
-              key={sz.id}
-              position={[sz.latitude, sz.longitude]}
-              icon={createCustomIcon('#166534', '🛡️')}
-            >
-              <Popup className="custom-popup">
-                <div className="p-2 space-y-1.5 max-w-xs">
-                  <div className="flex items-center justify-between gap-1">
-                    <Badge status={sz.status} />
-                    <span className="text-[10px] font-mono text-ink-muted uppercase">{sz.type}</span>
-                  </div>
-                  <h4 className="font-semibold text-ink text-sm leading-tight">{sz.name}</h4>
-                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
-                    <span>📍</span> {sz.locationName}
-                  </p>
-                  <div className="text-xs text-ink-body pt-1 space-y-0.5 border-t border-hairline">
-                    <p className="flex justify-between">
-                      <strong>Capacity:</strong>
-                      <span className="font-semibold text-emerald-700">{sz.capacityOccupied} / {sz.capacityTotal}</span>
-                    </p>
-                    {sz.elevationMeters && (
-                      <p className="flex justify-between text-ink-muted">
-                        <span>Elevation:</span>
-                        <span>{sz.elevationMeters}m MSL</span>
+          safeZones
+            .filter((sz) => !isNaN(Number(sz.latitude)) && !isNaN(Number(sz.longitude)))
+            .map((sz) => {
+              const lat = Number(sz.latitude);
+              const lng = Number(sz.longitude);
+              return (
+                <Marker key={sz.id} position={[lat, lng]} icon={createCustomIcon('#166534', '🛡️')}>
+                  <Popup className="custom-popup">
+                    <div className="p-2 space-y-1.5 max-w-xs">
+                      <div className="flex items-center justify-between gap-1">
+                        <Badge status={sz.status} />
+                        <span className="text-[10px] font-mono text-ink-muted uppercase">{sz.type}</span>
+                      </div>
+                      <h4 className="font-semibold text-ink text-sm leading-tight">{sz.name}</h4>
+                      <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                        <span>📍</span> {sz.locationName}
                       </p>
-                    )}
-                    {sz.contactPerson && (
-                      <p className="text-[11px] text-ink-muted truncate">
-                        <strong>Nodal:</strong> {sz.contactPerson}
-                      </p>
-                    )}
-                    {sz.contactPhone && (
-                      <p className="pt-0.5">
-                        <a href={`tel:${sz.contactPhone}`} className="text-xs font-semibold text-coral hover:underline">
-                          📞 {sz.contactPhone}
-                        </a>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                      <div className="text-xs text-ink-body pt-1 space-y-0.5 border-t border-hairline">
+                        <p className="flex justify-between">
+                          <strong>Capacity:</strong>
+                          <span className="font-semibold text-emerald-700">
+                            {sz.capacityOccupied} / {sz.capacityTotal}
+                          </span>
+                        </p>
+                        {sz.elevationMeters && (
+                          <p className="flex justify-between text-ink-muted">
+                            <span>Elevation:</span>
+                            <span>{sz.elevationMeters}m MSL</span>
+                          </p>
+                        )}
+                        {sz.contactPerson && (
+                          <p className="text-[11px] text-ink-muted truncate">
+                            <strong>Nodal:</strong> {sz.contactPerson}
+                          </p>
+                        )}
+                        {sz.contactPhone && (
+                          <p className="pt-0.5">
+                            <a
+                              href={`tel:${sz.contactPhone}`}
+                              className="text-xs font-semibold text-coral hover:underline"
+                            >
+                              📞 {sz.contactPhone}
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
 
         {/* 3. Emergency Resources / Hospitals */}
         {showResources &&
-          resources.map((resItem) => (
-            <Marker
-              key={resItem.id}
-              position={[resItem.latitude, resItem.longitude]}
-              icon={createCustomIcon('#1E40AF', '🏥')}
-            >
-              <Popup className="custom-popup">
-                <div className="p-2 space-y-1.5 max-w-xs">
-                  <div className="flex items-center justify-between gap-1">
-                    <Badge status={resItem.status} />
-                    <span className="text-[10px] font-mono text-ink-muted uppercase">{resItem.category}</span>
-                  </div>
-                  <h4 className="font-semibold text-ink text-sm leading-tight">{resItem.name}</h4>
-                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
-                    <span>📍</span> {resItem.locationName}
-                  </p>
-                  <p className="text-xs text-ink-body">{resItem.details}</p>
-                  <p className="text-xs font-semibold text-[#1E40AF] pt-1 border-t border-hairline">
-                    <a href={`tel:${resItem.contactNumber}`} className="hover:underline flex items-center gap-1">
-                      <span>📞</span> {resItem.contactNumber}
-                    </a>
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+          resources
+            .filter((resItem) => !isNaN(Number(resItem.latitude)) && !isNaN(Number(resItem.longitude)))
+            .map((resItem) => {
+              const lat = Number(resItem.latitude);
+              const lng = Number(resItem.longitude);
+              return (
+                <Marker key={resItem.id} position={[lat, lng]} icon={createCustomIcon('#1E40AF', '🏥')}>
+                  <Popup className="custom-popup">
+                    <div className="p-2 space-y-1.5 max-w-xs">
+                      <div className="flex items-center justify-between gap-1">
+                        <Badge status={resItem.status} />
+                        <span className="text-[10px] font-mono text-ink-muted uppercase">
+                          {resItem.category}
+                        </span>
+                      </div>
+                      <h4 className="font-semibold text-ink text-sm leading-tight">{resItem.name}</h4>
+                      <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                        <span>📍</span> {resItem.locationName}
+                      </p>
+                      <p className="text-xs text-ink-body">{resItem.details}</p>
+                      <p className="text-xs font-semibold text-[#1E40AF] pt-1 border-t border-hairline">
+                        <a href={`tel:${resItem.contactNumber}`} className="hover:underline flex items-center gap-1">
+                          <span>📞</span> {resItem.contactNumber}
+                        </a>
+                      </p>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
 
         {/* 4. Citizen Incident Reports */}
         {showReports &&
-          reports.map((rpt) => (
-            <Marker
-              key={rpt.id}
-              position={[rpt.latitude, rpt.longitude]}
-              icon={createCustomIcon(
-                rpt.status === 'VERIFIED' ? '#D97706' : '#B45309',
-                '📍'
-              )}
-              eventHandlers={{
-                click: () => onReportClick && onReportClick(rpt),
-              }}
-            >
-              <Popup className="custom-popup">
-                <div className="p-2 space-y-1.5 max-w-xs">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-mono text-ink-muted font-bold">{rpt.trackingCode}</span>
-                    <Badge status={rpt.status} />
-                  </div>
-                  <h4 className="font-semibold text-ink text-sm leading-tight">{rpt.title}</h4>
-                  <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
-                    <span>📍</span> {rpt.locationName}
-                  </p>
-                  <p className="text-xs text-ink-body line-clamp-3">{rpt.description}</p>
-                  {rpt.imageUrl && (
-                    <img
-                      src={rpt.imageUrl}
-                      alt="Incident proof"
-                      className="w-full h-24 object-cover rounded-md mt-1 border border-hairline"
-                    />
+          reports
+            .filter((rpt) => !isNaN(Number(rpt.latitude)) && !isNaN(Number(rpt.longitude)))
+            .map((rpt) => {
+              const lat = Number(rpt.latitude);
+              const lng = Number(rpt.longitude);
+              return (
+                <Marker
+                  key={rpt.id}
+                  position={[lat, lng]}
+                  icon={createCustomIcon(
+                    rpt.status === 'VERIFIED' ? '#D97706' : '#B45309',
+                    '📍'
                   )}
-                  <div className="text-[10px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
-                    <span>Reporter: {rpt.citizenName || 'Verified Citizen'}</span>
-                    <span className="font-semibold text-coral">{rpt.triagePriority} Priority</span>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          ))}
+                  eventHandlers={{
+                    click: () => onReportClick && onReportClick(rpt),
+                  }}
+                >
+                  <Popup className="custom-popup">
+                    <div className="p-2 space-y-1.5 max-w-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-mono text-ink-muted font-bold">
+                          {rpt.trackingCode}
+                        </span>
+                        <Badge status={rpt.status} />
+                      </div>
+                      <h4 className="font-semibold text-ink text-sm leading-tight">{rpt.title}</h4>
+                      <p className="text-[11px] text-ink-muted flex items-center gap-1 font-medium">
+                        <span>📍</span> {rpt.locationName}
+                      </p>
+                      <p className="text-xs text-ink-body line-clamp-3">{rpt.description}</p>
+                      {rpt.imageUrl && (
+                        <img
+                          src={rpt.imageUrl}
+                          alt="Incident proof"
+                          className="w-full h-24 object-cover rounded-md mt-1 border border-hairline"
+                        />
+                      )}
+                      <div className="text-[10px] text-ink-muted pt-1 border-t border-hairline flex items-center justify-between">
+                        <span>Reporter: {rpt.citizenName || 'Verified Citizen'}</span>
+                        <span className="font-semibold text-coral">{rpt.triagePriority} Priority</span>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
       </MapContainer>
     </div>
   );

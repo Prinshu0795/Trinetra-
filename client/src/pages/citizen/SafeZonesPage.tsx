@@ -16,13 +16,18 @@ import api from '../../lib/api';
 import { SafeZone } from '../../types';
 import { Badge } from '../../components/common/Badge';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { supabase, isSupabaseConfigured, supabaseGetSafeZones } from '../../lib/supabase';
 
 const DEFAULT_COORDS = [
-  { name: 'Lucknow (UP)', lat: 26.8467, lng: 80.9462 },
-  { name: 'Ayodhya (UP)', lat: 26.7997, lng: 82.2044 },
+  { name: 'Guwahati (AS)', lat: 26.1445, lng: 91.7362 },
   { name: 'Delhi NCR', lat: 28.6139, lng: 77.209 },
   { name: 'Mumbai (MH)', lat: 19.076, lng: 72.8777 },
+  { name: 'Bengaluru (KA)', lat: 12.9716, lng: 77.5946 },
+  { name: 'Chennai (TN)', lat: 13.0827, lng: 80.2707 },
   { name: 'Kolkata (WB)', lat: 22.5726, lng: 88.3639 },
+  { name: 'Lucknow (UP)', lat: 26.8467, lng: 80.9462 },
+  { name: 'Chamoli (UK)', lat: 30.5562, lng: 79.567 },
+  { name: 'Wayanad (KL)', lat: 11.5534, lng: 76.132 },
 ];
 
 export const SafeZonesPage: React.FC = () => {
@@ -45,28 +50,52 @@ export const SafeZonesPage: React.FC = () => {
   const fetchShelters = async (lat: number, lng: number, forceLive: boolean) => {
     try {
       setLoading(true);
-      const res = await api.get(
-        `/safe-zones/instant?lat=${lat}&lng=${lng}&radiusKm=35&live=${forceLive}`
-      );
-      if (res.data.success) {
-        setSafeZones(res.data.data.shelters || []);
-        setTelemetry({
-          verifiedCount: res.data.data.verifiedCount || 0,
-          osmCount: res.data.data.osmCount || 0,
-          cached: res.data.data.cached || false,
-        });
-      }
-    } catch (err) {
-      console.warn('Instant shelter fetch fallback:', err);
-      // Fallback to standard safe zones
-      try {
-        const fallbackRes = await api.get(`/safe-zones?lat=${lat}&lng=${lng}`);
-        if (fallbackRes.data.success) {
-          setSafeZones(fallbackRes.data.data || []);
+      let loadedShelters: SafeZone[] = [];
+
+      // 1. Fetch live safe zones from Supabase directly
+      if (isSupabaseConfigured) {
+        try {
+          const supaShelters = await supabaseGetSafeZones();
+          if (supaShelters?.length) {
+            loadedShelters = supaShelters as any;
+            setTelemetry((prev) => ({
+              ...prev,
+              verifiedCount: supaShelters.length,
+            }));
+          }
+        } catch (supaErr) {
+          console.warn('Direct Supabase shelter fetch warning:', supaErr);
         }
-      } catch (e) {
-        console.error('All shelter routes failed:', e);
       }
+
+      // 2. Fetch instant/OSM dynamic shelters
+      try {
+        const res = await api.get(
+          `/safe-zones/instant?lat=${lat}&lng=${lng}&radiusKm=35&live=${forceLive}`
+        );
+        if (res.data?.success) {
+          const instantShelters: SafeZone[] = res.data.data.shelters || [];
+          // Combine Supabase verified shelters with OSM shelters
+          const combined = [...loadedShelters];
+          for (const s of instantShelters) {
+            if (!combined.some((c) => c.name.toLowerCase() === s.name.toLowerCase())) {
+              combined.push(s);
+            }
+          }
+          loadedShelters = combined;
+          setTelemetry({
+            verifiedCount: res.data.data.verifiedCount || loadedShelters.length,
+            osmCount: res.data.data.osmCount || 0,
+            cached: res.data.data.cached || false,
+          });
+        }
+      } catch (err) {
+        console.warn('Instant shelter route fallback notice:', err);
+      }
+
+      setSafeZones(loadedShelters);
+    } catch (err) {
+      console.error('All shelter routes failed:', err);
     } finally {
       setLoading(false);
     }
@@ -74,6 +103,18 @@ export const SafeZonesPage: React.FC = () => {
 
   useEffect(() => {
     fetchShelters(effectiveLat, effectiveLng, liveMode);
+
+    // Live Realtime Subscription for safe zones
+    const szChannel = supabase
+      .channel('safe-zones-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'safe_zones' }, () => {
+        fetchShelters(effectiveLat, effectiveLng, liveMode);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(szChannel);
+    };
   }, [effectiveLat, effectiveLng, liveMode]);
 
   const filteredSafeZones = safeZones.filter((sz) => {

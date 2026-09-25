@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { isSupabaseConfigured, supabaseSignIn } from '../../lib/supabase';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -31,25 +32,55 @@ export const LoginPage: React.FC = () => {
 
     try {
       setLoading(true);
-      const res = await api.post('/auth/login', {
-        email: email.trim(),
-        password,
-      });
+      let authenticatedUser: any = null;
+      let userToken = '';
 
-      if (res.data.success) {
-        const { token, user } = res.data.data;
-        login(token, user);
+      // 1. Try Live Supabase Auth directly
+      if (isSupabaseConfigured) {
+        try {
+          const supaRes = await supabaseSignIn(email.trim(), password);
+          if (supaRes?.user) {
+            authenticatedUser = supaRes.user;
+            userToken = supaRes.token;
+          }
+        } catch (supaErr: any) {
+          console.warn('Live Supabase Auth error, checking backend fallback:', supaErr?.message);
+        }
+      }
+
+      // 2. Fallback to Express backend if needed
+      if (!authenticatedUser) {
+        const res = await api.post('/auth/login', {
+          email: email.trim(),
+          password,
+        });
+
+        if (res.data?.success) {
+          authenticatedUser = res.data.data.user;
+          userToken = res.data.data.token;
+        }
+      }
+
+      if (authenticatedUser) {
+        login(userToken, authenticatedUser);
 
         // Role-based destination
-        if (user.role === 'ADMIN' || user.role === 'AUTHORITY' || user.role === 'RESPONDER') {
+        if (
+          authenticatedUser.role === 'ADMIN' ||
+          authenticatedUser.role === 'AUTHORITY' ||
+          authenticatedUser.role === 'RESPONDER'
+        ) {
           navigate('/authority/dashboard');
         } else {
           navigate('/citizen/portal');
         }
+      } else {
+        throw new Error('Authentication failed. Please verify your email and password.');
       }
     } catch (err: any) {
       setErrorMsg(
         err.response?.data?.error?.message ||
+          err.message ||
           'Authentication failed. Please verify your email and password credentials.'
       );
     } finally {

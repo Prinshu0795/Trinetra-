@@ -86,6 +86,28 @@ export async function findNearbyAlerts(lat: number, lng: number, radiusKm: numbe
   );
 }
 
+export async function findNearbyDisasters(lat: number, lng: number, radiusKm: number) {
+  const { minLat, maxLat, minLng, maxLng } = getBoundingBox(lat, lng, Math.max(radiusKm, 100));
+
+  const candidates = await prisma.disaster.findMany({
+    where: {
+      latitude: { gte: minLat, lte: maxLat },
+      longitude: { gte: minLng, lte: maxLng },
+      status: 'ACTIVE',
+    },
+  });
+
+  return candidates.filter((c) => calculateDistance(lat, lng, c.latitude, c.longitude) <= Math.max(radiusKm, c.radiusKm));
+}
+
+export async function getAllActiveDisasters() {
+  return prisma.disaster.findMany({
+    where: { status: 'ACTIVE' },
+    orderBy: { declaredAt: 'desc' },
+  });
+}
+
 export async function getFloodBuffers() {
   return prisma.floodBuffer.findMany();
 }
+

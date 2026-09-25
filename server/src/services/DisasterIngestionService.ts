@@ -66,37 +66,49 @@ function isRelevantDisaster(
   placeOrTitle: string,
   magnitudeOrSeverity?: number | string
 ): boolean {
-  // 1. Strict India & Immediate Maritime Economic Zone: Lat 5°N to 38°N, Lng 65°E to 98°E
-  const inIndiaTerritory = lat >= 5.0 && lat <= 38.5 && lng >= 65.0 && lng <= 98.5;
+  const lower = placeOrTitle.toLowerCase();
+
+  // Exclude non-Indian countries unless specifically affecting Indian waters/islands
+  if (
+    lower.includes('thailand') ||
+    lower.includes('china') ||
+    lower.includes('tajikistan') ||
+    lower.includes('afghanistan')
+  ) {
+    if (!lower.includes('india') && !lower.includes('andaman') && !lower.includes('nicobar')) {
+      return false;
+    }
+  }
+
+  // 1. Strict India Mainland & Territorial Waters: Lat 6°N to 37.5°N, Lng 68°E to 97.4°E
+  const inIndiaTerritory = lat >= 6.0 && lat <= 37.5 && lng >= 68.0 && lng <= 97.4;
   if (inIndiaTerritory) return true;
 
-  // 2. Immediate South Asian cross-border river basins & maritime littoral (Bay of Bengal / Arabian Sea)
-  const inRegionalBasin = lat >= 0.0 && lat <= 39.0 && lng >= 58.0 && lng <= 102.0;
-  if (inRegionalBasin) {
-    const lower = placeOrTitle.toLowerCase();
-    const isSubcontinental =
+  // 2. Andaman & Nicobar Archipelagic Zone: Lat 6°N to 14°N, Lng 92°E to 94.5°E
+  const inAndamanNicobar = lat >= 6.0 && lat <= 14.0 && lng >= 92.0 && lng <= 94.5;
+  if (inAndamanNicobar) return true;
+
+  // 3. Immediate maritime littorals (Bay of Bengal / Arabian Sea / Indian Ocean)
+  const inMaritimeZone = lat >= 5.0 && lat <= 24.0 && lng >= 65.0 && lng <= 96.0;
+  if (inMaritimeZone) {
+    const isMaritime =
       lower.includes('india') ||
-      lower.includes('assam') ||
-      lower.includes('bengal') ||
-      lower.includes('delhi') ||
-      lower.includes('mumbai') ||
-      lower.includes('nepal') ||
-      lower.includes('bhutan') ||
-      lower.includes('bangladesh') ||
-      lower.includes('myanmar') ||
-      lower.includes('sri lanka') ||
-      lower.includes('maldives') ||
       lower.includes('bay of bengal') ||
       lower.includes('arabian sea') ||
       lower.includes('andaman') ||
       lower.includes('nicobar');
-    if (isSubcontinental) return true;
+    if (isMaritime) return true;
   }
 
-  // 3. Catastrophic international events only if extreme magnitude (M >= 7.5) with direct Indian Ocean tsunami advisory
+  // 4. Himalayan border seismic events with high magnitude (M >= 5.0) felt across North India
+  const inHimalayanZone = lat >= 26.0 && lat <= 36.0 && lng >= 72.0 && lng <= 92.0;
+  if (inHimalayanZone && typeof magnitudeOrSeverity === 'number' && magnitudeOrSeverity >= 5.0) {
+    return true;
+  }
+
+  // 5. Catastrophic international events only if extreme magnitude (M >= 7.5) with direct Indian Ocean tsunami advisory
   if (typeof magnitudeOrSeverity === 'number' && magnitudeOrSeverity >= 7.5) {
-    const lower = placeOrTitle.toLowerCase();
-    if (lower.includes('indian ocean') || lower.includes('indonesia') || lower.includes('sumatra')) {
+    if (lower.includes('indian ocean') || lower.includes('sumatra') || lower.includes('andaman sea')) {
       return true;
     }
   }
@@ -110,11 +122,11 @@ export class DisasterIngestionService {
 
   /**
    * 1. USGS Real-time Earthquakes Ingestion (Regional + Global Significant)
-   * Free, authoritative, updated every 60 seconds globally.
+   * Free, authoritative, updated every 60 seconds globally. Uses 7-day feed for reliable Indian subcontinent coverage.
    */
   static async syncUSGS(): Promise<{ count: number; error?: string }> {
     try {
-      const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson';
+      const url = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson';
       const res = await fetch(url, {
         headers: { 'User-Agent': 'TrinetraDisasterManagement/1.0' },
         signal: AbortSignal.timeout(10000), // 10s timeout protection

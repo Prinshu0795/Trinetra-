@@ -1,15 +1,21 @@
-// client/src/components/relay/FloatingSosButton.tsx
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AlertOctagon, Radio } from 'lucide-react';
 import { EmergencySosModal } from './EmergencySosModal';
 import { relayMeshEngine } from '../../lib/relayMeshEngine';
 import { RelayPacket } from '../../types';
 
 export const FloatingSosButton: React.FC = () => {
+  const location = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [peerActivity, setPeerActivity] = useState(false);
 
+  // Strictly render only on the Home page
+  const isHomePage = location.pathname === '/' || location.pathname === '/home';
+
   useEffect(() => {
+    if (!isHomePage) return;
+
     // Listen for P2P mesh packet relay events
     const unsubscribe = relayMeshEngine.subscribe((packet: RelayPacket, source) => {
       if (source === 'P2P_PEER') {
@@ -19,7 +25,9 @@ export const FloatingSosButton: React.FC = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isHomePage]);
+
+  if (!isHomePage) return null;
 
   return (
     <>

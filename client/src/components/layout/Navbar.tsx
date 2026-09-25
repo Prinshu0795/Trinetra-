@@ -11,8 +11,6 @@ import {
   PhoneCall,
   LogIn,
   LogOut,
-  Volume2,
-  VolumeX,
   ChevronDown,
   Layers,
   Radio,
@@ -23,6 +21,7 @@ import {
   Shield,
   LifeBuoy,
   Menu,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useAlertStream } from '../../context/AlertStreamContext';
@@ -121,16 +120,10 @@ export const Navbar: React.FC = () => {
   // Situational Awareness Navigation Modules
   const situationalLinks = [
     {
-      name: 'Live GIS Map',
-      path: '/map',
-      icon: MapPin,
-      subtitle: 'Hazard perimeter & relief telemetry',
-    },
-    {
-      name: 'Geo-Intelligence',
+      name: 'Geo-Intelligence & Live GIS',
       path: '/geo-intelligence',
       icon: Activity,
-      subtitle: 'Predictive AI risk & terrain models',
+      subtitle: 'Interactive hazard map & risk intelligence',
     },
     {
       name: 'Broadcast Alerts',
@@ -227,7 +220,7 @@ export const Navbar: React.FC = () => {
     <>
       {/* Live SSE Alert Ticker Ribbon (Visible on all pages when active alert exists) */}
       {latestLiveAlert && (
-        <div className="bg-[#FDF2F2] border-b border-[#F5C2C2] text-[#9E2A2B] px-4 py-2 flex items-center justify-between text-xs sm:text-sm font-medium tracking-normal shadow-sm animate-fade-in relative z-50">
+        <div className="bg-[#FDF2F2] border-b border-[#F5C2C2] text-[#9E2A2B] px-4 py-2 flex items-center justify-between text-xs sm:text-sm font-medium tracking-normal shadow-sm animate-fade-in relative z-[5001]">
           <div className="flex items-center space-x-2.5 overflow-hidden">
             <span className="flex h-2 w-2 rounded-full bg-[#C64545] flex-shrink-0 animate-ping" />
             <span className="bg-[#F5C2C2]/70 text-[#9E2A2B] px-1.5 py-0.5 rounded text-[10px] uppercase font-mono font-semibold tracking-wider flex-shrink-0">
@@ -255,7 +248,7 @@ export const Navbar: React.FC = () => {
       )}
 
       {/* Main Top Navigation Header */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-hairline shadow-[0_1px_2px_rgba(0,0,0,0.02)] select-none">
+      <header className="sticky top-0 z-[5000] bg-white/95 backdrop-blur-md border-b border-hairline shadow-[0_1px_2px_rgba(0,0,0,0.02)] select-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 gap-3">
             {/* Left: Brand Identity */}
@@ -305,7 +298,7 @@ export const Navbar: React.FC = () => {
 
                 {/* Situational Awareness Floating Popover */}
                 <div
-                  className={`pt-2 z-50 transition-all duration-200 ease-out ${
+                  className={`pt-2 z-[5010] transition-all duration-200 ease-out ${
                     openMenu === 'situational'
                       ? 'opacity-100 translate-y-0 pointer-events-auto visible'
                       : 'opacity-0 -translate-y-2 pointer-events-none invisible'
@@ -395,7 +388,7 @@ export const Navbar: React.FC = () => {
 
                 {/* Civil Defense Floating Popover */}
                 <div
-                  className={`pt-2 z-50 transition-all duration-200 ease-out ${
+                  className={`pt-2 z-[5010] transition-all duration-200 ease-out ${
                     openMenu === 'civilDefense'
                       ? 'opacity-100 translate-y-0 pointer-events-auto visible'
                       : 'opacity-0 -translate-y-2 pointer-events-none invisible'
@@ -485,7 +478,7 @@ export const Navbar: React.FC = () => {
 
                 {/* Emergency Response Floating Popover */}
                 <div
-                  className={`pt-2 z-50 transition-all duration-200 ease-out ${
+                  className={`pt-2 z-[5010] transition-all duration-200 ease-out ${
                     openMenu === 'emergency'
                       ? 'opacity-100 translate-y-0 pointer-events-auto visible'
                       : 'opacity-0 -translate-y-2 pointer-events-none invisible'
@@ -592,7 +585,6 @@ export const Navbar: React.FC = () => {
 
             {/* Right: Profile Icon Dropdown or Login */}
             <div className="flex items-center space-x-2 sm:space-x-2.5 flex-shrink-0">
-
               {/* Profile Icon with Hover Dropdown (Takes minimal space, consolidates portal & logout) */}
               {isAuthenticated ? (
                 <div
@@ -631,7 +623,7 @@ export const Navbar: React.FC = () => {
 
                   {/* Profile Hover Dropdown Menu */}
                   <div
-                    className={`absolute top-full right-0 pt-2 z-50 transition-all duration-200 ease-out w-64 ${
+                    className={`absolute top-full right-0 pt-2 z-[5010] transition-all duration-200 ease-out w-64 ${
                       isProfileOpen
                         ? 'opacity-100 translate-y-0 pointer-events-auto visible'
                         : 'opacity-0 -translate-y-2 pointer-events-none invisible'
@@ -822,21 +814,8 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
 
-              {/* Mobile Quick Action Buttons (Helplines, Audio Siren & Menu Drawer) */}
+              {/* Mobile Quick Action Buttons (Helplines & Menu Drawer) */}
               <div className="flex md:hidden items-center space-x-1 pl-1 border-l border-hairline">
-                <button
-                  type="button"
-                  onClick={() => setAudioEnabled(!audioEnabled)}
-                  className="p-1.5 rounded-xl border border-hairline bg-white text-ink-muted hover:text-ink transition"
-                  title={audioEnabled ? 'Mute Siren' : 'Enable Siren'}
-                  aria-label="Toggle Siren Audio"
-                >
-                  {audioEnabled ? (
-                    <Volume2 className="w-4 h-4 text-coral" />
-                  ) : (
-                    <VolumeX className="w-4 h-4 text-ink-subtle" />
-                  )}
-                </button>
                 <button
                   type="button"
                   onClick={() => setSosModalOpen(true)}
@@ -849,10 +828,11 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
-                  className="p-1.5 rounded-xl border border-hairline bg-white text-ink hover:bg-canvas-subtle transition"
-                  aria-label="Open Directory Menu"
+                  className="p-2 rounded-xl border border-hairline bg-white text-ink hover:bg-canvas-subtle hover:text-coral active:bg-hairline transition shadow-xs flex items-center justify-center"
+                  aria-label="Open Navigation Sidebar"
+                  title="Open Navigation Menu"
                 >
-                  <Menu className="w-4 h-4" />
+                  <Menu className="w-5 h-5 text-ink" />
                 </button>
               </div>
             </div>

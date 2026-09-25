@@ -1,7 +1,6 @@
-// client/src/context/AlertStreamContext.tsx
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Alert } from '../types';
-import { alertAudio } from '../lib/audio';
+import { supabase } from '../lib/supabase';
 
 interface AlertStreamContextType {
   latestLiveAlert: Alert | null;
@@ -22,6 +21,44 @@ export const AlertStreamProvider: React.FC<{ children: React.ReactNode }> = ({ c
     let eventSource: EventSource | null = null;
     let reconnectTimeout: any = null;
 
+    // 1. Supabase Realtime Subscription (Live Postgres changes)
+    const supaChannel = supabase
+      .channel('live-alerts-feed')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'alerts' },
+        (payload) => {
+          const raw = payload.new as any;
+          if (!raw) return;
+          const alertData: Alert = {
+            id: raw.id,
+            disasterId: raw.disaster_id,
+            title: raw.title,
+            type: raw.type,
+            severity: raw.severity,
+            status: raw.status,
+            targetAreaName: raw.target_area_name,
+            targetLatitude: raw.target_latitude,
+            targetLongitude: raw.target_longitude,
+            targetRadiusKm: raw.target_radius_km,
+            headline: raw.headline,
+            detailedMessage: raw.detailed_message,
+            actionInstructions: raw.action_instructions,
+            source: raw.source || 'TRINETRA National Alert System',
+            authorId: raw.author_id || 'system',
+            issuedAt: raw.issued_at || new Date().toISOString(),
+            expiresAt: raw.expires_at || '',
+          };
+          setLatestLiveAlert(alertData);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setIsConnected(true);
+        }
+      });
+
+    // 2. Local SSE Stream Connection (Express fallback / dual-stream)
     const connectSSE = () => {
       try {
         eventSource = new EventSource('/api/v1/alerts/stream');
@@ -35,14 +72,6 @@ export const AlertStreamProvider: React.FC<{ children: React.ReactNode }> = ({ c
             const parsed = JSON.parse(e.data);
             const alertData: Alert = parsed.data;
             setLatestLiveAlert(alertData);
-
-            if (audioEnabled) {
-              if (alertData.severity === 'CRITICAL' || alertData.severity === 'HIGH') {
-                alertAudio.playEmergencyTone();
-              } else {
-                alertAudio.playNotificationPing();
-              }
-            }
           } catch (err) {
             console.error('Error handling SSE alert event:', err);
           }
@@ -53,7 +82,6 @@ export const AlertStreamProvider: React.FC<{ children: React.ReactNode }> = ({ c
         });
 
         eventSource.onerror = () => {
-          setIsConnected(false);
           if (eventSource) {
             eventSource.close();
           }
@@ -68,6 +96,7 @@ export const AlertStreamProvider: React.FC<{ children: React.ReactNode }> = ({ c
     connectSSE();
 
     return () => {
+      supabase.removeChannel(supaChannel);
       if (eventSource) {
         eventSource.close();
       }

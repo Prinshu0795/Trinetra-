@@ -3,9 +3,18 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply bg-canvas text-ink-body antialiased min-h-screen font-sans;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent button touch delay and tap shifts */
+  button, a {
+    touch-action: manipulation;
   }
 
   /* Editorial serif display headings */
@@ -38,6 +47,14 @@
 }
 .animate-slide-up {
   animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInRight {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Warm light scrollbars */

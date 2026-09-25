@@ -27,6 +27,13 @@ import { AuthoritySidebar } from '../../components/layout/AuthoritySidebar';
 import { useAuth } from '../../context/AuthContext';
 import { Role } from '../../types';
 import api from '../../lib/api';
+import {
+  supabase,
+  isSupabaseConfigured,
+  supabaseGetUsers,
+  supabaseAdminCreateUser,
+  supabaseAdminDeleteUser,
+} from '../../lib/supabase';
 
 interface ManagedUser {
   id: string;
@@ -71,19 +78,27 @@ export const UserManagementPage: React.FC = () => {
       setErrorMsg(null);
       let loadedUsers: ManagedUser[] = [];
 
-      try {
-        const res = await api.get('/auth/users');
-        if (res.data?.success) {
-          loadedUsers = res.data.data.users || [];
-        }
-      } catch (backendErr) {
-        // Fall back to direct Supabase users query
-        const { isSupabaseConfigured, supabaseGetUsers } = await import('../../lib/supabase');
-        if (isSupabaseConfigured) {
+      // 1. Fetch live user directory directly from Supabase
+      if (isSupabaseConfigured) {
+        try {
           const supaUsers = await supabaseGetUsers();
-          loadedUsers = supaUsers as any;
-        } else {
-          throw backendErr;
+          if (supaUsers && supaUsers.length > 0) {
+            loadedUsers = supaUsers as any;
+          }
+        } catch (supaErr) {
+          console.warn('Direct Supabase users fetch fallback:', supaErr);
+        }
+      }
+
+      // 2. Fallback to Express backend if needed
+      if (!loadedUsers.length) {
+        try {
+          const res = await api.get('/auth/users');
+          if (res.data?.success) {
+            loadedUsers = res.data.data.users || [];
+          }
+        } catch (backendErr) {
+          console.error('All user endpoints unreachable:', backendErr);
         }
       }
 
@@ -97,6 +112,18 @@ export const UserManagementPage: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
+
+    // Live Realtime Subscription for Users table
+    const usersChannel = supabase
+      .channel('users-directory-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(usersChannel);
+    };
   }, []);
 
   const handleCreateUser = async (e: React.FormEvent) => {

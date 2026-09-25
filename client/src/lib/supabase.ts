@@ -298,6 +298,43 @@ export async function supabaseGetDisasters() {
 }
 
 /**
+ * Create a new disaster directly in Supabase
+ */
+export async function supabaseCreateDisaster(params: {
+  title: string;
+  type: string;
+  severity: string;
+  locationName: string;
+  latitude: number;
+  longitude: number;
+  radiusKm: number;
+  description: string;
+  affectedPopulationEst: number;
+}) {
+  const { data, error } = await supabase
+    .from('disasters')
+    .insert([
+      {
+        title: params.title,
+        type: params.type,
+        severity: params.severity,
+        location_name: params.locationName,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        radius_km: params.radiusKm,
+        description: params.description,
+        affected_population_est: params.affectedPopulationEst,
+        status: 'ACTIVE',
+      },
+    ])
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
  * Fetch alerts directly from Supabase
  */
 export async function supabaseGetAlerts() {

@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Bell,
-  Volume2,
   Clock,
   MapPin,
   CheckCircle,
@@ -12,8 +11,8 @@ import {
 import api from '../../lib/api';
 import { Alert } from '../../types';
 import { Badge } from '../../components/common/Badge';
-import { alertAudio } from '../../lib/audio';
 import { useGeolocation } from '../../hooks/useGeolocation';
+import { supabase, isSupabaseConfigured, supabaseGetAlerts } from '../../lib/supabase';
 
 function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -41,18 +40,27 @@ export const AlertsPage: React.FC = () => {
       setLoading(true);
       let loadedAlerts: Alert[] = [];
 
-      try {
-        const res = await api.get('/alerts?status=ACTIVE');
-        if (res.data?.success) {
-          loadedAlerts = res.data.data;
-        }
-      } catch (backendErr) {
-        const { isSupabaseConfigured, supabaseGetAlerts } = await import('../../lib/supabase');
-        if (isSupabaseConfigured) {
+      // 1. Fetch live alerts directly from Supabase
+      if (isSupabaseConfigured) {
+        try {
           const supaAlerts = await supabaseGetAlerts();
-          loadedAlerts = supaAlerts as any;
-        } else {
-          throw backendErr;
+          if (supaAlerts?.length) {
+            loadedAlerts = supaAlerts as any;
+          }
+        } catch (supaErr) {
+          console.warn('Direct Supabase alerts fetch fallback:', supaErr);
+        }
+      }
+
+      // 2. Fallback to Express backend if needed
+      if (!loadedAlerts.length) {
+        try {
+          const res = await api.get('/alerts?status=ACTIVE');
+          if (res.data?.success) {
+            loadedAlerts = res.data.data;
+          }
+        } catch (backendErr) {
+          console.error('All alert endpoints unreachable:', backendErr);
         }
       }
 
@@ -66,6 +74,22 @@ export const AlertsPage: React.FC = () => {
 
   useEffect(() => {
     fetchAlerts();
+
+    // Live Realtime Subscription for alerts
+    const alertsChannel = supabase
+      .channel('alerts-page-live')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'alerts' },
+        () => {
+          fetchAlerts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(alertsChannel);
+    };
   }, []);
 
   // Compute distance and threat status for each alert relative to current sector
@@ -110,15 +134,6 @@ export const AlertsPage: React.FC = () => {
             Authoritative, time-bound warnings issued by State and National Disaster Management Authorities.
           </p>
         </div>
-
-        {/* Audio Test & Toggle */}
-        <button
-          onClick={() => alertAudio.playEmergencyTone(1000)}
-          className="self-start sm:self-auto flex items-center space-x-2 px-3.5 py-2 bg-white hover:bg-canvas text-ink border border-hairline rounded-xl text-xs font-semibold transition shadow-card"
-        >
-          <Volume2 className="w-4 h-4 text-[#166534]" />
-          <span>Test EAS Sounder</span>
-        </button>
       </div>
 
       {/* Filter Tabs & Proximity Controls */}
