@@ -19,6 +19,7 @@ import {
   Clock,
   Navigation,
   AlertOctagon,
+  Search,
 } from 'lucide-react';
 import api from '../../lib/api';
 import { Disaster, SafeZone, Alert, IncidentReport, RiskAssessment, EmergencyResource } from '../../types';
